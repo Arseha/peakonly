@@ -16,7 +16,7 @@ To preprocess your first spectrum you should do a few similiar steps:
 - download current repository
 - install requirements: 
 ```
-pip3 install -r requirementrs.txt
+pip3 install -r requirements.txt
 ```
 - run **run.py** in the following format (**path** - path to your file from current repository, **delta_mz** - a parameters for mz window in ROI detection, **required_points** - minimum ROI length in points):
 ```
