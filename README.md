@@ -15,13 +15,13 @@ To preprocess your first spectrum you should do a few similiar steps:
 
 - download current repository
 - install requirements: 
-'''
+```
 pip3 install -r requirementrs.txt
-'''
+```
 - run **run.py** in the following format (**path** - path to your file from current repository, **delta_mz** - a parameters for mz window in ROI detection, **required_points** - minimum ROI length in points):
-'''
+```
 python3 run.py path delta_mz required_points
-'''
+```
 
 To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing spectrum. 
 To retrain models one can run **train_classifier.py** and **train_integrator.py**
