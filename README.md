@@ -11,7 +11,7 @@ Supported formats:
 
 - .mzML
 
-To preprocess your first spectrum you should do a few similiar steps:
+To preprocess your first spectrum you should do a few simple steps:
 
 - download current repository
 - install requirements: 
