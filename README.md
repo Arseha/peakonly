@@ -23,7 +23,7 @@ pip3 install -r requirements.txt
 python3 run.py path delta_mz required_points
 ```
 
-To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing spectrum. 
+To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing LC-MS data. 
 To retrain models one can run **train_classifier.py** and **train_integrator.py**
 
 
