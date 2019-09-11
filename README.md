@@ -1,7 +1,7 @@
 **peakonly**
 ________
 
-*peakonly* is a novel approach for peaks (features) detection in raw LC-MS data written in Python version 3.5. The main idea underlying the approach is the training of two subsequent artificial neural networks to firstly classify ROIs (regions of interest) into three classes (noise, peaks, uncertain peaks) and then to determine boundaries for every peak to integrate its area. Current approach was developed for the high-resolution LC-MS data for the purposes of metabolomics, but can be applied with several adaptations in other fields that utilize data from GC- or LC-MS techniques.
+*peakonly* is a novel approach written in Python version 3.5 for peaks (features) detection in raw LC-MS data. The main idea underlying the approach is the training of two subsequent artificial neural networks to firstly classify ROIs (regions of interest) into three classes (noise, peaks, uncertain peaks) and then to determine boundaries for every peak to integrate its area. Current approach was developed for the high-resolution LC-MS data for the purposes of metabolomics, but can be applied with several adaptations in other fields that utilize data from high-resolution GC- or LC-MS techniques.
 
 - **Article**: currently this work is in preparation for publication
 - **Source code**: https://github.com/Arseha/peakonly
