@@ -1,4 +1,3 @@
-Python v3.5 or higher
 pymzML 
 pytorch >= 1.2.0
 scipy
