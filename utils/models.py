@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-# change smth
+
 class Block(nn.Module):
     def __init__(self, in_channels, out_channels, bn=True, padding=2, dilation=1, stride=1):
         super().__init__()
