@@ -1,5 +1,5 @@
 pymzML 
-pytorch >= 1.2.0
+torch >= 1.2.0
 scipy
 tqdm
 pandas
