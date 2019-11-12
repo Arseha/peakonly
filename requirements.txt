@@ -1,4 +1,6 @@
-pymzML 
+matplotlib
+numpy
+pymzML
 torch >= 1.2.0
 scipy
 tqdm
