@@ -14,6 +14,7 @@ def preprocess(signal, points=256):
     signal = torch.tensor(signal / np.max(signal), dtype=torch.float32)
     return signal.view(1, 1, -1)
 
+
 if __name__ == '__main__':
     if len(sys.argv) != 4:
         print('''Run script in the following format:
@@ -89,5 +90,5 @@ python3 run.py path_to_file delta_mz minimum_points''')
             for key in peaks:
                 peaks[key].extend(process_peaks[key])
 
-        df = pd.DataFrame.from_dict(peaks)
-        df.to_csv('../results.csv')
+    df = pd.DataFrame.from_dict(peaks)
+    df.to_csv('../results.csv')
