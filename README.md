@@ -11,10 +11,22 @@ Supported formats:
 
 - .mzML
 
+Operating System Compatibility
+------------------------------
+peakonly has been tested successfully with:
+
+- Ubuntu 16.04 
+- macOS Catalina
+
+Nevertheless, all the dependencies of the project can be installed and run on Windows (especially Windows 10 since it includes a subsystem to run Linux Bash shell). Be sure that your python version is at least 3.5.
+
+
+Processing your own spectrum
+----------------------------
 To preprocess your first spectrum you should do a few simple steps:
 
 - download current repository
-- install requirements: 
+- install requirements in the following way (or you can simpy open reqirements.txt file and download listed libraries in any other convenient for you way): 
 ```
 pip3 install -r requirements.txt
 ```
@@ -22,10 +34,15 @@ pip3 install -r requirements.txt
 ```
 python3 run.py path delta_mz required_points
 ```
+The resulted file will be saved as results.csv and will be near **peakonly** folder. The file will contain information about m/z and rt for every peak as well as calculated areas.
 (All the commands should be written in your terminal. If you are using Windows 10 you can install the Linux bash shell. Feel free to ask any questions if you have any problems)
 
-To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing LC-MS data. 
-To retrain models one can run **train_classifier.py** and **train_integrator.py**
+To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing LC-MS data. You can also download a testing LC-MS file and data used during training via [googledrive](https://drive.google.com/drive/u/3/folders/1thIvYk72Js7128PCjnwU2OVLMwHc5jpu). If you want to retrain models, train/val/test data should be inside folder **data** (in peakonly repository), don't forget to unzip it (as a result folder **data** shoul include 3 folders: **train**, **val**, **test**). 
+To retrain models one can simply run **train_classifier.py** and **train_integrator.py**:
+```
+python3 train_classifier.py
+python3 train_integrator.py
+```
 
 
 Call for Contributions
@@ -35,6 +52,3 @@ peakonly appreciates help from a wide range of different backgrounds.
 Small improvements or fixes are always appreciated.
 If you are considering larger contributions, have some questions or an offer for cooperation,
 please contact the main contributor (melnikov.arsenty@gmail.com).
-
-
-
