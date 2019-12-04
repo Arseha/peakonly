@@ -117,4 +117,6 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3):
             # insert in the begin
             roi.i.insert(0, 0)
             roi.mz.insert(0, roi.mzmean)
+        # change scan numbers (necessary for future matching)
+        roi.scan = (roi.scan[0] - dropped_points, roi.scan[1] + dropped_points)
     return ROIs

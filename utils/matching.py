@@ -2,7 +2,6 @@ import numpy as np
 from collections import defaultdict
 from scipy.sparse.csgraph import connected_components
 from utils.roi import ROI
-# import matplotlib.pyplot as plt
 
 
 class mzRegion:
@@ -51,7 +50,7 @@ def construct_mzregions(ROIs, delta_mz):
     rois = rois[order]
 
     mzregions = []
-    roi_dict = defaultdict(list)
+    roi_dict = defaultdict(list)  # save all rois within current region
     region_begin, region_end = mz_mins[0], mz_maxs[0]
     for begin, end, name_roi in zip(mz_mins, mz_maxs, rois):
         if begin > region_end + delta_mz:
@@ -138,9 +137,27 @@ class groupedROI:
     """
     A class that represents a group of ROIs
     """
-    def __init__(self, roi, shifts):
-        self.roi = roi
+    def __init__(self, rois, shifts, samples):
+        self.rois = rois
         self.shifts = shifts
+        self.samples = samples
+
+    def append(self, roi, shift, sample):
+        self.rois.append(roi)
+        self.shifts.append(shift)
+        self.samples.append(sample)
+
+    def pop(self, idx):
+        if isinstance(idx, list):
+            for j in sorted(idx, reverse=True):
+                self.rois.pop(j)
+                self.shifts.pop(j)
+                self.samples.pop(j)
+        else:
+            assert isinstance(idx, int)
+            self.rois.pop(idx)
+            self.shifts.pop(idx)
+            self.samples.pop(idx)
 
 
 def stitch_component(component):
@@ -164,12 +181,12 @@ def stitch_component(component):
                 end_rt = roi.rt[1]
 
         # to do: use parameter with missing zeros (not 7)
-        i = np.zeros(end_scan - begin_scan + 7)
-        mz = np.zeros(end_scan - begin_scan + 7)
+        i = np.zeros(end_scan - begin_scan + 1)
+        mz = np.zeros(end_scan - begin_scan + 1)
         for roi in component[file]:
             begin, end = roi.scan
-            i[begin - begin_scan:end - begin_scan + 7] = roi.i
-            mz[begin - begin_scan:end - begin_scan + 7] = roi.mz
+            i[begin - begin_scan:end - begin_scan + 1] = roi.i
+            mz[begin - begin_scan:end - begin_scan + 1] = roi.mz
         mzmean = np.mean(mz)
         new_component[file] = [ROI([begin_scan, end_scan],
                                    [begin_rt, end_rt],
@@ -184,50 +201,47 @@ def scale(array):
     return (array - np.mean(array))/np.std(array)
 
 
-def align_component(component):
+def align_component(component, max_shift=20):
     """
     Align ROIs in component based on point-wise correlation
     :param component: defaultdict where the key is the name of file and value is a list of ROIs
+    :param max_shift: maximum shift in scans
     :return: an groupedROI object
     """
     # stitching first
     component = stitch_component(component)
-    # find base_file and base_roi
-    base_file = None
-    base_roi = None
+    # find base_sample which correspond to the sample with highest intensity within roi
     max_i = 0
     max_len = 0
-    for file in component:
-        for roi in component[file]:
+    base_sample, base_roi = None, None
+    for sample in component:
+        for roi in component[sample]:
             # should be only one roi!
             i = np.max(roi.i)
             if i > max_i:
-                base_file = file
                 max_i = i
-                base_roi = roi
+                base_sample, base_roi = sample, roi
             if len(roi.i) > max_len:
                 max_len = len(roi.i)
-    n = max_len + 40  # to do: magic constant?
-    base_roi_pad = np.pad(scale(base_roi.i), (n, n))
-    shifts = []
-    for file in component:
-        for roi in component[file]:  # should be only one roi
-            roi_pad = scale(roi.i)
-            corr = np.convolve(roi_pad[::-1], base_roi_pad, mode='valid')
-        # if len(corr) < n - base_roi.scan[0] + roi.scan[0]:
-        #     print(np.mean(roi.mz), roi.rt)
-        #     print(file, base_file)
-        #     x = np.linspace(base_roi.scan[0], base_roi.scan[1], len(base_roi.i))
-        #     plt.plot(x, base_roi.i)
-        #     x = np.linspace(roi.scan[0], roi.scan[1], len(roi.i))
-        #     plt.plot(x, roi.i)
-        #     plt.show()
-        #     break
-        pos = n - base_roi.scan[0] + roi.scan[0]  # to do: don't clear how it works
-        if len(corr) < pos:
-            shifts.append(0)
+    n = max_len  # to do: come up with a better idea
+    base_roi_scaled = np.pad(scale(base_roi.i), (n, n))
+    aligned_rois = groupedROI([], [], [])
+    for sample in component:
+        assert len(component[sample]) == 1  # should be only one roi after stitching
+        roi = component[sample][0]
+        if sample == base_sample:  # doesn't need to be corrected
+            aligned_rois.append(roi, 0, sample)
         else:
-            shift = np.argmax(corr[pos - 20:pos + 20]) - 20
-            shifts.append(shift)
-        # shifts.append(np.argmax(corr) - n + base_roi.scan[0] - roi.scan[0])
-    return groupedROI(component, shifts)
+            # position in correlation vector, which would correspond to zero shift
+            pos = n - base_roi.scan[0] + roi.scan[0]
+            len_corr_vector = len(base_roi_scaled) - len(roi.i) + 1  # length of correlation vector
+            if pos > len_corr_vector or pos < 0:
+                aligned_rois.append(roi, 0, sample)  # too far to shift
+            else:
+                roi_scaled = scale(roi.i)
+                corr_vector = np.convolve(roi_scaled[::-1],  base_roi_scaled, mode='valid')  # reflection is necessary
+                assert len(corr_vector) == len_corr_vector
+                begin = max(pos - max_shift, 0)
+                shift = np.argmax(corr_vector[begin:pos + max_shift]) - pos + begin
+                aligned_rois.append(roi, shift, sample)
+    return aligned_rois
