@@ -23,16 +23,16 @@ Nevertheless, all the dependencies of the project can be installed and run on Wi
 
 Processing your own spectrum
 ----------------------------
-To preprocess your first spectrum you should do a few simple steps:
+To process your single spectrum you should do a few simple steps:
 
 - download current repository
-- install requirements in the following way (or you can simpy open reqirements.txt file and download listed libraries in any other convenient for you way): 
+- install requirements in the following automated way (or you can simpy open reqirements.txt file and download listed libraries in any other convenient for you way): 
 ```
 pip3 install -r requirements.txt
 ```
 - run **run.py** in the following format (**path** - path to your file from current repository, **delta_mz** - a parameters for mz window in ROI detection, **roi_minimum_points** - minimum ROI length in points, **peak_minimum_points** - minimum peak length in points):
 ```
-python3 run.py path delta_mz required_points
+python3 run.py path delta_mz roi_minimum_points peak_minimum_points
 ```
 The resulted file will be saved as results.csv and will be near **peakonly** folder. The file will contain information about m/z and rt for every peak as well as calculated areas.
 (All the commands should be written in your terminal. If you are using Windows 10 you can install the Linux bash shell. Feel free to ask any questions if you have any problems)
