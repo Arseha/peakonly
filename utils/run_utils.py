@@ -42,12 +42,12 @@ def classifier_prediction(roi, classifier, device, points=256):
     return np.argmax(proba.cpu().detach().numpy())
 
 
-def border_prediction(roi, integrator, device, required_points, points=256, split_threshold=0.95, threshold=0.5):
+def border_prediction(roi, integrator, device, peak_minimum_points, points=256, split_threshold=0.95, threshold=0.5):
     """
     :param roi: an ROI object
     :param integrator: CNN for border prediction
     :param device: cpu or gpu
-    :param required_points: minimum points in ROI
+    :param peak_minimum_points: minimum points in peak
     :param points: number of point needed for CNN
     :param split_threshold: threshold for probability of splitter
     :return: borders as an list of size n_peaks x 2
@@ -69,7 +69,7 @@ def border_prediction(roi, integrator, device, required_points, points=256, spli
         elif domain[n + 1] and begin != -1:  # peak continues
             peak_wide += 1
         elif not domain[n + 1] and begin != -1:  # peak ends
-            if peak_wide / points * len(roi.i) > required_points // 2:
+            if peak_wide / points * len(roi.i) > peak_minimum_points:
                 number_of_peaks += 1
                 borders_signal.append([begin, n + 2])  # to do: why n+2?
                 borders_roi.append([np.max((int((begin + 1) * len(roi.i) // points - 1), 0)),

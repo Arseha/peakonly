@@ -10,13 +10,14 @@ from utils.run_utils import find_mzML, classifier_prediction, border_prediction,
 from utils.postprocess import ResultTable
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print('''Run script in the following format:
-    python3 run.py path_to_dir delta_mz minimum_points''')
+    python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
         exit()
     path = sys.argv[1]
     delta_mz = float(sys.argv[2])
     required_points = int(sys.argv[3])
+    peak_minimum_points = int(sys.argv[4])
 
     ### ROI detection ###
     # search .mzML files in directory
@@ -61,7 +62,7 @@ if __name__ == '__main__':
         to_delete = []
         for j, (sample, roi) in enumerate(zip(component.samples, component.rois)):
             if labels[sample] == 1:
-                border = border_prediction(roi, integrate, device, required_points)
+                border = border_prediction(roi, integrate, device, peak_minimum_points)
                 if len(border) == 0:  # if no border were predicted
                     to_delete.append(j)
                 else:
