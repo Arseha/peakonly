@@ -30,7 +30,7 @@ To preprocess your first spectrum you should do a few simple steps:
 ```
 pip3 install -r requirements.txt
 ```
-- run **run.py** in the following format (**path** - path to your file from current repository, **delta_mz** - a parameters for mz window in ROI detection, **required_points** - minimum ROI length in points):
+- run **run.py** in the following format (**path** - path to your file from current repository, **delta_mz** - a parameters for mz window in ROI detection, **roi_minimum_points** - minimum ROI length in points, **peak_minimum_points** - minimum peak length in points):
 ```
 python3 run.py path delta_mz required_points
 ```
