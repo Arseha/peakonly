@@ -26,7 +26,7 @@ Processing your own spectrum
 To process your single spectrum you should do a few simple steps:
 
 - download current repository
-- install requirements in the following automated way (or you can simpy open reqirements.txt file and download listed libraries in any other convenient for you way): 
+- install requirements in the following automated way (or you can simply open reqirements.txt file and download listed libraries in any other convenient way): 
 ```
 pip3 install -r requirements.txt
 ```
