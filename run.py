@@ -93,3 +93,4 @@ python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
 
     df = pd.DataFrame.from_dict(peaks)
     df.to_csv('../results.csv')
+    print('Processing is done!')
