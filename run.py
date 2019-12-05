@@ -16,14 +16,15 @@ def preprocess(signal, points=256):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print('''Run script in the following format:
-python3 run.py path_to_file delta_mz minimum_points''')
+python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
         exit()
     path = sys.argv[1]
     delta_mz = float(sys.argv[2])
     required_points = int(sys.argv[3])
-    ROIs = get_ROIs(path, delta_mz, required_points) # get ROIs from raw spectrum
+    peak_minimum_points = int(sys.argv[4])
+    ROIs = get_ROIs(path, delta_mz, required_points)  # get ROIs from raw spectrum
 
     # load models
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -62,7 +63,7 @@ python3 run.py path_to_file delta_mz minimum_points''')
                 elif domain[n + 1] and begin != -1:  # peak continues
                     peak_wide += 1
                 elif not domain[n + 1] and begin != -1:  # peak ends
-                    if peak_wide / points * len(roi.i) > required_points // 2:
+                    if peak_wide / points * len(roi.i) > peak_minimum_points:
                         number_of_peaks += 1
                         process_peaks['begins'].append(begin)
                         process_peaks['ends'].append(n + 2)
