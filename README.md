@@ -17,8 +17,10 @@ peakonly has been tested successfully with:
 
 - Ubuntu 16.04 
 - macOS Catalina
+- Windows 10 
+- Windows 7
 
-Nevertheless, all the dependencies of the project can be installed and run on Windows (especially Windows 10 since it includes a subsystem to run Linux Bash shell). Be sure that your python version is at least 3.5.
+For Windows7/10 commands should be entered through Windows PowerShell. Detailed instruction is available ***link***. Be sure that your python version is at least 3.5.
 
 
 Processing your own spectrum
