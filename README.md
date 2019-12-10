@@ -20,7 +20,7 @@ peakonly has been tested successfully with:
 - Windows 10 
 - Windows 7
 
-For Windows7/10 commands should be entered through Windows PowerShell. Detailed instruction is available http://bit.ly/2qBdTMo. Be sure that your python version is at least 3.5.
+For Windows7/10 commands should be entered through Windows PowerShell. [Detailed instruction is available](http://bit.ly/2qBdTMo). Be sure that your python version is at least 3.5.
 
 
 Processing your own spectrum
