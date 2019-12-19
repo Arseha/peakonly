@@ -37,7 +37,7 @@ pip3 install -r requirements.txt
 python3 run.py path delta_mz roi_minimum_points peak_minimum_points
 ```
 The resulted file will be saved as results.csv and will be near **peakonly** folder. The file will contain information about m/z and rt for every peak as well as calculated areas.
-(All the commands should be written in your terminal. If you are using Windows 10 you can install the Linux bash shell. Feel free to ask any questions if you have any problems)
+All the commands should be entered in the Unix terminal. If you are using Windows 7 or 10 the commands should be entered in the Windows PowerShell. Feel free to ask any questions if you have any problems.
 
 To download data used during the training simply run **download_data.sh**, which is inside the folder **data**. There are also **download_mix_example.sh** to dowload a testing LC-MS data. You can also download a testing LC-MS file and data used during training via [googledrive](https://drive.google.com/drive/u/3/folders/1thIvYk72Js7128PCjnwU2OVLMwHc5jpu). If you want to retrain models, train/val/test data should be inside folder **data** (in peakonly repository), don't forget to unzip it (as a result folder **data** shoul include 3 folders: **train**, **val**, **test**). 
 To retrain models one can simply run **train_classifier.py** and **train_integrator.py**:
@@ -46,6 +46,7 @@ python3 train_classifier.py
 python3 train_integrator.py
 ```
 
+The user-friendly tool for the creation of own train/val/test data set for re-training of the networks to the specific data from other instuments is pending. 
 
 Call for Contributions
 ----------------------
