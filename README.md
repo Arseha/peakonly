@@ -2,7 +2,7 @@
 ________
 THIS BRANCH IS IN A DEVELOPMENT. ALL THE FEATURES (THE OLD ONE AND THE NEW ONE) MAY WORK IMPROPERLY!
 
-May difference with the **master** branch:
+Main differences with the **master** branch:
 - ROI detection is speeded up.
 - Added functionality to process a batch of the spectra (with some limitations for now; contact the main contributor if you want to know more).
 
