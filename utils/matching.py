@@ -187,7 +187,7 @@ def stitch_component(component):
             begin, end = roi.scan
             i[begin - begin_scan:end - begin_scan + 1] = roi.i
             mz[begin - begin_scan:end - begin_scan + 1] = roi.mz
-        mzmean = np.mean(mz)
+        mzmean = np.mean(mz[mz != 0])  # mean based on nonzero elements
         new_component[file] = [ROI([begin_scan, end_scan],
                                    [begin_rt, end_rt],
                                    i, mz, mzmean)]

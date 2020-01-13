@@ -145,15 +145,19 @@ class Feature:
 def build_features(component, borders):
     intensities = []
     rtmin, rtmax, mz = None, None, None
+    rtdiff = (component.rois[0].rt[1] - component.rois[0].rt[0])
+    scandiff = (component.rois[0].scan[1] - component.rois[0].scan[0])
+    frequency = scandiff / rtdiff
     for k, sample in enumerate(component.samples):
         begin, end = borders[sample][0]  # only single peaks
         intensity = np.sum(component.rois[k].i[begin:end])
         intensities.append(intensity)
         if mz is None:
             mz = component.rois[k].mzmean
-            rtmin, rtmax = component.rois[k].rt
+            rtmin = component.rois[k].rt[0] + begin / frequency
+            rtmax = component.rois[k].rt[0] + end / frequency
         else:
             mz = (mz * k + component.rois[k].mzmean) / (k + 1)
-            rtmin = min((rtmin, component.rois[k].rt[0]))
-            rtmax = max((rtmax, component.rois[k].rt[1]))
+            rtmin = min((rtmin, component.rois[k].rt[0] + begin / frequency))
+            rtmax = max((rtmax, component.rois[k].rt[0] + end / frequency))
     return Feature(component.samples, intensities, mz, rtmin, rtmax)
