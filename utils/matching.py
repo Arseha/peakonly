@@ -101,10 +101,10 @@ def roi_intersected(one_roi, two_roi, percentage=None):
                    min(two_roi.mz),
                    max(two_roi.mz)) and \
        intersected(one_roi.rt[0],
-                       one_roi.rt[1],
-                       two_roi.rt[0],
-                       two_roi.rt[1],
-                       percentage):
+                   one_roi.rt[1],
+                   two_roi.rt[0],
+                   two_roi.rt[1],
+                   percentage):
         ans = True
     return ans
 
@@ -138,15 +138,25 @@ class groupedROI:
     """
     A class that represents a group of ROIs
     """
-    def __init__(self, rois, shifts, samples):
-        self.rois = rois
-        self.shifts = shifts
-        self.samples = samples
 
-    def append(self, roi, shift, sample):
+    def __init__(self, rois, shifts, samples, grouping):
+        self.rois = rois  # rois
+        self.shifts = shifts  # shifts for each roi
+        self.samples = samples  # samples names
+        self.grouping = grouping  # similarity groups
+
+    def __len__(self):
+        length = len(self.rois)
+        assert length == len(self.shifts)
+        assert length == len(self.samples)
+        assert length == len(self.grouping)
+        return length
+
+    def append(self, roi, shift, sample, group_number):
         self.rois.append(roi)
         self.shifts.append(shift)
         self.samples.append(sample)
+        self.grouping.append(group_number)
 
     def pop(self, idx):
         if isinstance(idx, list):
@@ -154,28 +164,37 @@ class groupedROI:
                 self.rois.pop(j)
                 self.shifts.pop(j)
                 self.samples.pop(j)
+                self.grouping.pop(j)
         else:
             assert isinstance(idx, int)
             self.rois.pop(idx)
             self.shifts.pop(idx)
             self.samples.pop(idx)
+            self.grouping.pop(idx)
 
-    def plot(self):
+    def plot(self, based_on_grouping=False):
         """
             Visualize a groupedROI object
         """
         name2label = {}
         label2class = {}
         labels = set()
-        for sample in self.samples:
-            end = sample.rfind('/')
-            begin = sample[:end].rfind('/') + 1
-            label = sample[begin:end]
-            labels.add(label)
-            name2label[sample] = label
+        if based_on_grouping:
+            labels = set(self.grouping)
+            for i, sample in enumerate(self.samples):
+                name2label[sample] = self.grouping[i]
+            for label in labels:
+                label2class[label] = label  # identical transition
+        else:
+            for sample in self.samples:
+                end = sample.rfind('/')
+                begin = sample[:end].rfind('/') + 1
+                label = sample[begin:end]
+                labels.add(label)
+                name2label[sample] = label
 
-        for i, label in enumerate(labels):
-            label2class[label] = i
+            for i, label in enumerate(labels):
+                label2class[label] = i
 
         m = len(labels)
         mz = []
@@ -194,6 +213,22 @@ class groupedROI:
             axes[0].plot(x, y, color=c)
             axes[1].plot(x_shifted, y, color=c)
         fig.suptitle('mz = {:.4f}, scan = {:.2f} -{:.2f}'.format(np.mean(mz), min(scan_begin), max(scan_end)))
+
+    def adjust(self, history, adjustment_threshold):
+        labels, counts = np.unique(self.grouping, return_counts=True)
+        counter = {label: count for label, count in zip(labels, counts)}
+
+        for i, sample in enumerate(self.samples):
+            if counter[self.grouping[i]] == 1:
+                best_gn, best_corr, best_shift = None, None, None
+                for gn, corr, shift in history[sample]:
+                    if (best_corr is None or corr > best_corr) and counter[gn] != 1:
+                        best_gn = gn
+                        best_corr = corr
+                        best_shift = shift
+                if best_corr is not None and best_corr > adjustment_threshold:
+                    self.grouping[i] = best_gn
+                    self.shifts[i] = best_shift
 
 
 def stitch_component(component):
@@ -234,8 +269,8 @@ def conv2correlation(roi_i, base_roi_i, conv_vector):
     n = np.zeros_like(conv_vector)
     x = np.sum(roi_i)
     y = np.sum(base_roi_i)
-    x_square = np.sum(roi_i ** 2)
-    y_square = np.sum(base_roi_i ** 2)
+    x_square = np.sum(np.power(roi_i, 2))  # to do: make roi.i np.array by default
+    y_square = np.sum(np.power(base_roi_i, 2))
 
     min_l = min((len(roi_i), len(base_roi_i)))
     max_l = max((len(roi_i), len(base_roi_i)))
@@ -257,31 +292,47 @@ def align_component(component, max_shift=20):
     # stitching first
     component = stitch_component(component)
     # find base_sample which correspond to the sample with highest intensity within roi
-    max_i = 0
-    max_len = 0
-    base_sample, base_roi = None, None
-    for sample in component:
-        for roi in component[sample]:
-            # should be only one roi!
-            i = np.max(roi.i)
-            if i > max_i:
-                max_i = i
-                base_sample, base_roi = sample, roi
-            if len(roi.i) > max_len:
-                max_len = len(roi.i)
+    correlation_threshold = 0.8
+    adjustment_threshold = 0.4
+    group_number = 0
+    aligned_component = groupedROI([], [], [], [])
+    # save (group-number, correlation, shift)
+    history = defaultdict(list)
 
-    aligned_rois = groupedROI([], [], [])
-    for sample in component:
-        assert len(component[sample]) == 1  # should be only one roi after stitching
-        roi = component[sample][0]
-        if sample == base_sample:  # doesn't need to be corrected
-            aligned_rois.append(roi, 0, sample)
-        else:
+    while len(component) != 0:
+        # choose base ROI from the remaining
+        max_i = 0
+        base_sample, base_roi = None, None
+        for sample in component:
+            assert len(component[sample]) == 1
+            for roi in component[sample]:  # in fact there are only one roi
+                i = np.max(roi.i)
+                if i > max_i:
+                    max_i = i
+                    base_sample, base_roi = sample, roi
+
+        component.pop(base_sample)  # delete chosen ROI from component
+        aligned_component.append(base_roi, 0, base_sample, group_number)
+
+        to_delete = []
+        for sample in component:
+            roi = component[sample][0]
             # position, when two ROIs begins simultaneously
             pos = len(roi.i) - 1  # to do: check it
             conv_vector = np.convolve(roi.i[::-1], base_roi.i, mode='full')  # reflection is necessary
             corr_vector = conv2correlation(roi.i, base_roi.i, conv_vector)
             # to do: find local maxima greater than threshold
             shift = np.argmax(corr_vector) - pos - roi.scan[0] + base_roi.scan[0]
-            aligned_rois.append(roi, shift, sample)
-    return aligned_rois
+            max_corr = np.max(corr_vector)
+            if max_corr > correlation_threshold:
+                to_delete.append(sample)  # delete ROI from component
+                aligned_component.append(roi, shift, sample, group_number)
+            history[sample].append((group_number, max_corr, shift))  # history for after adjustment
+
+        for sample in to_delete:
+            component.pop(sample)
+
+        group_number += 1  # increase group number
+
+    aligned_component.adjust(history, adjustment_threshold)  # to do: decide is it necessary
+    return aligned_component
