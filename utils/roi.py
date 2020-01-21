@@ -11,6 +11,8 @@ class ROI:
         self.mz = mz
         self.mzmean = mzmean
 
+    def __repr__(self):
+        return 'mz = {:.4f}, rt = {:.2f} - {:.2f}'.format(self.mzmean, self.rt[0], self.rt[1])
 
 class ProcessROI(ROI):
     def __init__(self, scan, rt, i, mz, mzmean):

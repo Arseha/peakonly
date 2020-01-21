@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.sparse.csgraph import connected_components
 from utils.roi import ROI
@@ -89,7 +90,7 @@ def intersected(begin1, end1, begin2, end2, percentage=None):
     return ans
 
 
-def roi_intersected(one_roi, two_roi, percentage=0.7):
+def roi_intersected(one_roi, two_roi, percentage=None):
     """
     A function that determines if two roi intersect based on rt and mz.
     :return: bool
@@ -159,6 +160,41 @@ class groupedROI:
             self.shifts.pop(idx)
             self.samples.pop(idx)
 
+    def plot(self):
+        """
+            Visualize a groupedROI object
+        """
+        name2label = {}
+        label2class = {}
+        labels = set()
+        for sample in self.samples:
+            end = sample.rfind('/')
+            begin = sample[:end].rfind('/') + 1
+            label = sample[begin:end]
+            labels.add(label)
+            name2label[sample] = label
+
+        for i, label in enumerate(labels):
+            label2class[label] = i
+
+        m = len(labels)
+        mz = []
+        scan_begin = []
+        scan_end = []
+        fig, axes = plt.subplots(1, 2)
+        for sample, roi, shift in zip(self.samples, self.rois, self.shifts):
+            mz.append(roi.mzmean)
+            scan_begin.append(roi.scan[0] + shift)
+            scan_end.append(roi.scan[1] + shift)
+            y = roi.i
+            x = np.linspace(roi.scan[0], roi.scan[1], len(y))
+            x_shifted = np.linspace(roi.scan[0] + shift, roi.scan[1] + shift, len(y))
+            label = label2class[name2label[sample]]
+            c = [label / m, 0.0, (m - label) / m]
+            axes[0].plot(x, y, color=c)
+            axes[1].plot(x_shifted, y, color=c)
+        fig.suptitle('mz = {:.4f}, scan = {:.2f} -{:.2f}'.format(np.mean(mz), min(scan_begin), max(scan_end)))
+
 
 def stitch_component(component):
     """
@@ -194,11 +230,21 @@ def stitch_component(component):
     return new_component
 
 
-def scale(array):
-    """
-    :return: a scaled version of the array
-    """
-    return (array - np.mean(array))/np.std(array)
+def conv2correlation(roi_i, base_roi_i, conv_vector):
+    n = np.zeros_like(conv_vector)
+    x = np.sum(roi_i)
+    y = np.sum(base_roi_i)
+    x_square = np.sum(roi_i ** 2)
+    y_square = np.sum(base_roi_i ** 2)
+
+    min_l = min((len(roi_i), len(base_roi_i)))
+    max_l = max((len(roi_i), len(base_roi_i)))
+
+    n[:min_l - 1] = np.arange(len(conv_vector), max_l, -1)
+    n[min_l - 1:min_l + max_l - min_l] = max_l
+    n[min_l + max_l - min_l:] = np.arange(max_l + 1, len(conv_vector) + 1, 1)
+
+    return (n * conv_vector - x * y) / (np.sqrt(n * x_square - x ** 2) * np.sqrt(n * y_square - y ** 2))
 
 
 def align_component(component, max_shift=20):
@@ -223,8 +269,7 @@ def align_component(component, max_shift=20):
                 base_sample, base_roi = sample, roi
             if len(roi.i) > max_len:
                 max_len = len(roi.i)
-    n = max_len  # to do: come up with a better idea
-    base_roi_scaled = np.pad(scale(base_roi.i), (n, n))
+
     aligned_rois = groupedROI([], [], [])
     for sample in component:
         assert len(component[sample]) == 1  # should be only one roi after stitching
@@ -232,16 +277,11 @@ def align_component(component, max_shift=20):
         if sample == base_sample:  # doesn't need to be corrected
             aligned_rois.append(roi, 0, sample)
         else:
-            # position in correlation vector, which would correspond to zero shift
-            pos = n - base_roi.scan[0] + roi.scan[0]
-            len_corr_vector = len(base_roi_scaled) - len(roi.i) + 1  # length of correlation vector
-            if pos > len_corr_vector or pos < 0:
-                aligned_rois.append(roi, 0, sample)  # too far to shift
-            else:
-                roi_scaled = scale(roi.i)
-                corr_vector = np.convolve(roi_scaled[::-1],  base_roi_scaled, mode='valid')  # reflection is necessary
-                assert len(corr_vector) == len_corr_vector
-                begin = max(pos - max_shift, 0)
-                shift = np.argmax(corr_vector[begin:pos + max_shift]) - pos + begin
-                aligned_rois.append(roi, shift, sample)
+            # position, when two ROIs begins simultaneously
+            pos = len(roi.i) - 1  # to do: check it
+            conv_vector = np.convolve(roi.i[::-1], base_roi.i, mode='full')  # reflection is necessary
+            corr_vector = conv2correlation(roi.i, base_roi.i, conv_vector)
+            # to do: find local maxima greater than threshold
+            shift = np.argmax(corr_vector) - pos - roi.scan[0] + base_roi.scan[0]
+            aligned_rois.append(roi, shift, sample)
     return aligned_rois
