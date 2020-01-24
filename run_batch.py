@@ -6,7 +6,7 @@ from utils.roi import get_ROIs
 from utils.models import Classifier, Integrator
 from utils.matching import construct_mzregions, rt_grouping, align_component
 from utils.run_utils import find_mzML, classifier_prediction, border_prediction,\
-    correct_classification, border_correction, build_features
+    correct_classification, border_correction, build_features, feature_collapsing
 from utils.postprocess import ResultTable
 
 if __name__ == '__main__':
@@ -50,6 +50,7 @@ if __name__ == '__main__':
     integrate.to(device)
     integrate.eval()
     # run through components
+    component_number = 0
     features = []
     for component in tqdm(aligned_components):
         # predict labels and correct them
@@ -69,16 +70,13 @@ if __name__ == '__main__':
                     borders[sample] = border
             else:
                 to_delete.append(j)
+
         if len(borders) > len(files) // 3:  # enough rois contain a peak
             component.pop(to_delete)  # delete ROIs which don't contain peaks
-            # to do: add multi functionality
-            uni = True
-            for border in borders.values():
-                if len(border) > 1:
-                    uni = False
-            if uni:
-                border_correction(component, borders)
-                features.append(build_features(component, borders))
+            border_correction(component, borders)
+            features.extend(build_features(component, borders, component_number))
+            component_number += 1
+    features = feature_collapsing(features)
     print('total number of features: {}'.format(len(features)))
 
     ### Save all features to csv file (zero filling is missing now)###

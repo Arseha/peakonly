@@ -72,7 +72,7 @@ def intersected(begin1, end1, begin2, end2, percentage=None):
     A simple function which determines if two segments intersect
     :return: bool
     """
-    lower = (end1 < end2) and (end1 > begin2)
+    lower = (end1 <= end2) and (end1 > begin2)
     bigger = (end1 > end2) and (end2 > begin1)
     if percentage is None:
         ans = (lower or bigger)
@@ -174,7 +174,7 @@ class groupedROI:
 
     def plot(self, based_on_grouping=False):
         """
-            Visualize a groupedROI object
+        Visualize a groupedROI object
         """
         name2label = {}
         label2class = {}
