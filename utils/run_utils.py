@@ -216,6 +216,8 @@ def border_correction(component, borders):
     for label in labels:
         # find total begin and end in one similarity group
         total_begin, total_end = None, None
+        # and maximum number of peaks
+        max_number_of_peaks = 0
         for i, sample in enumerate(component.samples):
             # to do: it would be better to have mapping from group to samples and numbers
             if component.grouping[i] == label:
@@ -225,6 +227,7 @@ def border_correction(component, borders):
                     begin, end = component.rois[i].scan
                     total_begin = min((total_begin, begin))
                     total_end = min((total_end, end))
+                max_number_of_peaks = max((max_number_of_peaks, len(borders[sample])))
 
         # find averaged integration domains
         averaged_domain = np.zeros(total_end - total_begin)
@@ -257,6 +260,28 @@ def border_correction(component, borders):
             averaged_borders.append([begin + total_begin, len(averaged_domain) + 1 + total_begin])  # to do: why n+2?
             begin = -1
 
+        while number_of_peaks > max_number_of_peaks:  # need to merge some borders
+            # to do: rethink this idea
+            # compute 'many-to-one' cases
+            counter = np.zeros(number_of_peaks)
+            for i, sample in enumerate(component.samples):
+                # to do: it would be better to have mapping from group to samples and numbers
+                if component.grouping[i] == label:
+                    mapping_matrix = np.zeros((len(scan_borders[sample]), len(averaged_borders)), dtype=np.int)
+                    for k, border in enumerate(scan_borders[sample]):
+                        for j, avg_border in enumerate(averaged_borders):
+                            mapping_matrix[k, j] += border_intersection(border, avg_border)
+                    for line in mapping_matrix:
+                        if np.sum(line) > 1:
+                            for j in np.where(line == 1):
+                                counter[j] += 1
+            counter_order = np.argsort(counter)
+            assert np.abs(counter_order[-1] - counter_order[-2]) == 1, "almost impossible case :)"
+            mergeable = min((counter_order[-1], counter_order[-2]))
+            averaged_borders[mergeable][1] = averaged_borders[mergeable + 1][1]
+            averaged_borders.pop(mergeable + 1)
+            number_of_peaks -= 1
+
         # finally border correctrion
         for i, sample in enumerate(component.samples):
             # to do: it would be better to have mapping from group to samples and numbers
@@ -271,7 +296,7 @@ def border_correction(component, borders):
             shifted_borders = []
             for border in scan_borders[sample]:
                 shifted_borders.append([max((border[0] - scan_begin - shift, 0)),
-                                        min((border[1] - scan_begin - shift, len(component.rois[k].i)))])
+                                        max((1, min((border[1] - scan_begin - shift, len(component.rois[k].i)))))])
             borders[sample] = shifted_borders
 
 
@@ -418,6 +443,19 @@ def build_features(component, borders, initial_group):
     return features
 
 
+def calculate1dios(s1, s2):
+    """
+    Calculate intersection over smallest
+    """
+    res = 0
+    i_b = max((s1[0], s2[0]))  # intersection begin
+    i_e = min((s1[1], s2[1]))  # intersection end
+    if i_b < i_e:
+        smallest = min((s1[1] - s1[0], s2[1] - s2[0]))
+        res = (i_e - i_b) / smallest
+    return res
+
+
 def collapse_mzrtgroup(mzrtgroup, code):
     """
     Collapse features from the same component based on peaks similarities
@@ -425,7 +463,6 @@ def collapse_mzrtgroup(mzrtgroup, code):
     :param code: a number (code) of mzrtgroup
     :return: new list of collapsed Feature objects
     """
-    new_features = []
     label2idx = defaultdict(list)
     for idx, feature in enumerate(mzrtgroup):
         label2idx[feature.similarity_group].append(idx)
@@ -440,45 +477,62 @@ def collapse_mzrtgroup(mzrtgroup, code):
                 n = k
         b, e = feature.borders[n]
         basepeak = np.array(feature.rois[n].i[b:e])
-        idx2basepeak[idx] = basepeak
+        idx2basepeak[idx] = {'peak': basepeak, 'rt': (feature.rtmin, feature.rtmax)}
 
     used_features = set()  # a set of already used features
-    for i, label in enumerate(unique_labels):  # iter over similarity group
-        for idx in label2idx[label]:  # iter over features in one similarity group
+    # matrix that corresponds old features to new feaures
+    # len(mzrtgroup) - maximum number of new  features
+    mapping_matrix = np.zeros((len(mzrtgroup), len(mzrtgroup)), dtype=np.int)
+    feature_n = 0
+    for i, label in enumerate(unique_labels):
+        for idx in label2idx[label]:  # iter over features in one similarity group (from the same ROI)
             if idx in used_features:
                 continue
-            base_peak = idx2basepeak[idx]
 
-            compose_idx = [None] * len(unique_labels)
-            compose_idx[i] = idx
+            base_peak = idx2basepeak[idx]['peak']
+            base_rt = idx2basepeak[idx]['rt']
+            mapping_matrix[feature_n, idx] = 1
+            used_features.add(idx)
 
             for j, comp_label in enumerate(unique_labels[i + 1:]):
+                # compute 'iou'
+                ious = np.zeros(len(label2idx[comp_label]))
                 # compute correlation coeffecients
                 correlation_coefficients = np.zeros(len(label2idx[comp_label]))
+                # save info on features id
                 features_jdxs = np.zeros(len(label2idx[comp_label]), dtype=np.int)
+
                 for n, jdx in enumerate(label2idx[comp_label]):
                     if jdx in used_features:
                         correlation_coefficients[n] = 0
                     else:
-                        comp_peak = idx2basepeak[jdx]
-
+                        comp_peak = idx2basepeak[jdx]['peak']
+                        comp_rt = idx2basepeak[jdx]['rt']
+                        # calculate 'iou'
+                        ious[n] = calculate1dios(base_rt, comp_rt)
                         # calculate cross-correlation
                         conv_vector = np.convolve(base_peak[::-1], comp_peak, mode='full')
                         corr_vector = conv2correlation(base_peak, comp_peak, conv_vector)
-
                         correlation_coefficients[n] = np.max(corr_vector)
                     features_jdxs[n] = jdx
 
-                if np.max(correlation_coefficients) > 0.8:  # to do: adjustable threshold?
-                    jdx = features_jdxs[np.argmax(correlation_coefficients)]
-                    compose_idx[j + i + 1] = jdx
-
-            # create 'new' feature
-            feature = Feature([], [], [], [], [], None, None, None, code, None)
-            for jdx in compose_idx:
-                if jdx is not None:
-                    feature.extend(mzrtgroup[jdx])
+                if np.max(ious) > 0.8:
+                    jdx = features_jdxs[np.argmax(ious)]
+                    mapping_matrix[feature_n, jdx] = 1
                     used_features.add(jdx)
+                elif np.max(correlation_coefficients) > 0.8:  # to do: adjustable threshold?
+                    jdx = features_jdxs[np.argmax(correlation_coefficients)]
+                    mapping_matrix[feature_n, jdx] = 1
+                    used_features.add(jdx)
+            feature_n += 1
+
+    # create 'new' features
+    new_features = []
+    for line in mapping_matrix:
+        if np.sum(line) != 0:
+            feature = Feature([], [], [], [], [], None, None, None, code, None)
+            for idx in np.where(line != 0)[0]:
+                feature.extend(mzrtgroup[idx])
             new_features.append(feature)
 
     return new_features
