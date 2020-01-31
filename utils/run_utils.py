@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.interpolate import interp1d
 from utils.matching import intersected, conv2correlation
+from itertools import permutations
 
 
 def find_mzML(path, array=None):
@@ -128,7 +129,7 @@ def border2average_correction(borders, averaged_borders):
     :return: corrected borders for current ROI in number of scan
     """
     # to do: use that borders are sorted in fact
-    if len(borders) == len(averaged_borders):  # to do: not the best solution
+    if len(borders) != 1 and len(borders) == len(averaged_borders):  # to do: not the best solution
         mapping_matrix = np.eye(len(borders), dtype=np.int)
     else:
         mapping_matrix = np.zeros((len(borders), len(averaged_borders)), dtype=np.int)
@@ -221,12 +222,15 @@ def border_correction(component, borders):
         for i, sample in enumerate(component.samples):
             # to do: it would be better to have mapping from group to samples and numbers
             if component.grouping[i] == label:
+                shift = component.shifts[i]
                 if total_begin is None and total_end is None:
                     total_begin, total_end = component.rois[i].scan
+                    total_begin += shift
+                    total_end += shift
                 else:
                     begin, end = component.rois[i].scan
-                    total_begin = min((total_begin, begin))
-                    total_end = min((total_end, end))
+                    total_begin = min((total_begin, begin + shift))
+                    total_end = max((total_end, end + shift))
                 max_number_of_peaks = max((max_number_of_peaks, len(borders[sample])))
 
         # find averaged integration domains
@@ -479,52 +483,106 @@ def collapse_mzrtgroup(mzrtgroup, code):
         basepeak = np.array(feature.rois[n].i[b:e])
         idx2basepeak[idx] = {'peak': basepeak, 'rt': (feature.rtmin, feature.rtmax)}
 
-    used_features = set()  # a set of already used features
-    # matrix that corresponds old features to new feaures
-    # len(mzrtgroup) - maximum number of new  features
-    mapping_matrix = np.zeros((len(mzrtgroup), len(mzrtgroup)), dtype=np.int)
+
+    similarity_values = np.zeros((len(mzrtgroup), len(mzrtgroup), 2))
     feature_n = 0
     for i, label in enumerate(unique_labels):
         for idx in label2idx[label]:  # iter over features in one similarity group (from the same ROI)
-            if idx in used_features:
-                continue
-
             base_peak = idx2basepeak[idx]['peak']
             base_rt = idx2basepeak[idx]['rt']
-            mapping_matrix[feature_n, idx] = 1
-            used_features.add(idx)
+            similarity_values[feature_n][idx] = (1, 1)
 
             for j, comp_label in enumerate(unique_labels[i + 1:]):
-                # compute 'iou'
-                ious = np.zeros(len(label2idx[comp_label]))
-                # compute correlation coeffecients
-                correlation_coefficients = np.zeros(len(label2idx[comp_label]))
-                # save info on features id
-                features_jdxs = np.zeros(len(label2idx[comp_label]), dtype=np.int)
-
-                for n, jdx in enumerate(label2idx[comp_label]):
-                    if jdx in used_features:
-                        correlation_coefficients[n] = 0
-                    else:
-                        comp_peak = idx2basepeak[jdx]['peak']
-                        comp_rt = idx2basepeak[jdx]['rt']
-                        # calculate 'iou'
-                        ious[n] = calculate1dios(base_rt, comp_rt)
-                        # calculate cross-correlation
-                        conv_vector = np.convolve(base_peak[::-1], comp_peak, mode='full')
-                        corr_vector = conv2correlation(base_peak, comp_peak, conv_vector)
-                        correlation_coefficients[n] = np.max(corr_vector)
-                    features_jdxs[n] = jdx
-
-                if np.max(ious) > 0.8:
-                    jdx = features_jdxs[np.argmax(ious)]
-                    mapping_matrix[feature_n, jdx] = 1
-                    used_features.add(jdx)
-                elif np.max(correlation_coefficients) > 0.8:  # to do: adjustable threshold?
-                    jdx = features_jdxs[np.argmax(correlation_coefficients)]
-                    mapping_matrix[feature_n, jdx] = 1
-                    used_features.add(jdx)
+                for jdx in label2idx[comp_label]:
+                    comp_peak = idx2basepeak[jdx]['peak']
+                    comp_rt = idx2basepeak[jdx]['rt']
+                    # calculate 'iou'
+                    inter = calculate1dios(base_rt, comp_rt)
+                    # calculate cross-correlation
+                    conv_vector = np.convolve(base_peak[::-1], comp_peak, mode='full')
+                    corr_vector = conv2correlation(base_peak, comp_peak, conv_vector)
+                    corr = np.max(corr_vector)
+                    if inter > 0.8 or corr > 0.8:
+                        similarity_values[feature_n][jdx] = [inter, corr]
             feature_n += 1
+
+    # to do: completely rewrite it
+    # from similarity_values construct mapping matrix
+    mapping_matrix = np.eye(len(mzrtgroup), dtype=np.int)
+    for i, label in enumerate(unique_labels):
+        for j, comp_label in enumerate(unique_labels[i + 1:]):
+            submatrix = similarity_values[label2idx[label]][:, label2idx[comp_label]]
+            raws, columns, _ = submatrix.shape
+            if raws > columns:
+                ones_position = np.arange(columns)
+                score = 0
+                for c, r in enumerate(ones_position):
+                    if submatrix[r, c, 0] > 0.8:
+                        score += 2
+                    else:
+                        score += submatrix[r, c, 0] + submatrix[r, c, 1]
+                # to do: write your own iterator which forbids cross shifts
+                for position_candidate in permutations(np.arange(raws), columns):
+                    flag_exit = False
+                    for c in range(columns - 1):
+                        if position_candidate[c + 1] < position_candidate[c]:
+                            r1 = position_candidate[c]
+                            r2 = position_candidate[c + 1]
+                            if submatrix[r1, c, 0] + submatrix[r1, c, 1] != 0 and \
+                               submatrix[r2, c + 1, 0] + submatrix[r2, c + 1, 1] != 0:
+                                flag_exit = True
+                                break
+                    if flag_exit:
+                        continue
+                    candidate_score = 0
+                    for c, r in enumerate(position_candidate):
+                        if submatrix[r, c, 0] > 0.8:
+                            candidate_score += 2
+                        else:
+                            candidate_score += submatrix[r, c, 0] + submatrix[r, c, 1]
+                    if candidate_score > score:
+                        score = candidate_score
+                        ones_position = position_candidate
+                for c, r in enumerate(ones_position):
+                    if submatrix[r, c, 0] + submatrix[r, c, 1] != 0:
+                        mapping_matrix[label2idx[label][r], label2idx[comp_label][c]] += 1
+            else:
+                ones_position = np.arange(raws)
+                score = 0
+                for r, c in enumerate(ones_position):
+                    if submatrix[r, c, 0] > 0.8:
+                        score += 2
+                    else:
+                        score += submatrix[r, c, 0] + submatrix[r, c, 1]
+                # to do: write your own iterator which forbids cross shifts
+                for position_candidate in permutations(np.arange(columns), raws):
+                    flag_exit = False
+                    for r in range(raws - 1):
+                        if position_candidate[r + 1] < position_candidate[r]:
+                            c1 = position_candidate[r]
+                            c2 = position_candidate[r + 1]
+                            if submatrix[r, c1, 0] + submatrix[r, c1, 1] != 0 and \
+                                    submatrix[r+1, c2, 0] + submatrix[r+1, c2, 1] != 0:
+                                flag_exit = True
+                                break
+                    if flag_exit:
+                        continue
+                    candidate_score = 0
+                    for r, c in enumerate(position_candidate):
+                        if submatrix[r, c, 0] > 0.8:
+                            candidate_score += 2
+                        else:
+                            candidate_score += submatrix[r, c, 0] + submatrix[r, c, 1]
+                    if candidate_score > score:
+                        score = candidate_score
+                        ones_position = position_candidate
+                for r, c in enumerate(ones_position):
+                    if submatrix[r, c, 0] + submatrix[r, c, 1] != 0:
+                        mapping_matrix[label2idx[label][r], label2idx[comp_label][c]] += 1
+    for j, columns in enumerate(mapping_matrix.T):
+        if np.sum(columns) > 1:
+            for i in np.where(columns == 1)[0][1:]:
+                mapping_matrix[i, j] = 0
 
     # create 'new' features
     new_features = []
