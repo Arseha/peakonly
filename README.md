@@ -4,7 +4,7 @@ ________
 *peakonly* is a novel approach written in Python (v3.5) for peaks (aka features) detection in raw LC-MS data. The main idea underlying the approach is the training of two subsequent artificial neural networks to firstly classify ROIs (regions of interest) into three classes (noise, peaks, uncertain peaks) and then to determine boundaries for every peak to integrate its area. Current approach was developed for the high-resolution LC-MS data for the purposes of metabolomics, but can be applied with several adaptations in other fields that utilize data from high-resolution GC- or LC-MS techniques.
 
 - **Article**: Deep learning for the precise peak detection in high-resolution LC-MS data, *Analytical Chemistry*. http://dx.doi.org/10.1021/acs.analchem.9b04811
-- **Source code**: https://github.com/Arseha/peakonly
+- **Source code**: https://github.com/Arseha/peakonly/releases/tag/v0.1
 
 
 Supported formats: 
@@ -27,7 +27,7 @@ Processing your own spectrum
 ----------------------------
 To process your single spectrum you should do a few simple steps:
 
-- download current repository
+- download current repository (https://github.com/Arseha/peakonly/releases/tag/v0.1)
 - install requirements in the following automated way (or you can simply open reqirements.txt file and download listed libraries in any other convenient way): 
 ```
 pip3 install -r requirements.txt
