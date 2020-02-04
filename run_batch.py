@@ -78,8 +78,16 @@ if __name__ == '__main__':
             component_number += 1
     features = feature_collapsing(features)
     print('total number of features: {}'.format(len(features)))
+    # explicitly delete features which were found in not enough quantity of ROIs
+    to_delete = []
+    for i, feature in enumerate(features):
+        if len(feature) <= len(files) // 3:  # to do: adjustable parameter
+            to_delete.append(i)
+    for j in to_delete[::-1]:
+        features.pop(j)
+    print('total number of features: {}'.format(len(features)))
 
-    ### Save all features to csv file (zero filling is missing now)###
+    ### Save all features to csv file (zero filling is missing now) ###
     table = ResultTable(files, features)
     table.fill_zeros(delta_mz)
     table.to_csv(os.path.join(path, 'resultTable.csv'))
