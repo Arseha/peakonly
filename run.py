@@ -63,7 +63,7 @@ if __name__ == '__main__':
                 elif domain[n + 1] and begin != -1:  # peak continues
                     peak_wide += 1
                 elif not domain[n + 1] and begin != -1:  # peak ends
-                    if peak_wide / points * len(roi.i) >  peak_minimum_points:
+                    if peak_wide / points * len(roi.i) > peak_minimum_points:
                         number_of_peaks += 1
                         process_peaks['begins'].append(begin)
                         process_peaks['ends'].append(n + 2)
@@ -90,6 +90,7 @@ if __name__ == '__main__':
             # add process_peaks into peaks
             for key in peaks:
                 peaks[key].extend(process_peaks[key])
-
+    
     df = pd.DataFrame.from_dict(peaks)
     df.to_csv('../results.csv')
+    print('Processing is done!')
