@@ -177,11 +177,15 @@ class ROIGenerator:
             points = np.random.randint(low=self.length // 16, high=self.length // 8)
             shape = np.random.choice(['linear', 'flattened gauss'])
             if shape == 'linear':
-                linear = interp1d([3, points - 3], [0, 1])
+                direction = np.random.choice(['growth', 'decline'])
+                if direction == 'growth':
+                    linear = interp1d([3, points - 3], [0, 1])
+                else:
+                    linear = interp1d([3, points - 3], [1, 0])
                 ROI['intensity'] = np.zeros(points)
                 ROI['intensity'][3:points - 3] = linear(np.arange(3, points - 3))
 
-                ROI['intensity'][3:-3] += 0.2 * np.random.randn(points - 6)
+                ROI['intensity'][3:-3] += 0.25 * np.random.randn(points - 6)
                 ROI['intensity'][ROI['intensity'] < 0] = 0
             elif shape == 'flattened gauss':
                 sigma = (points - 6) / 6
@@ -191,17 +195,24 @@ class ROIGenerator:
                 x = np.arange(points)
                 ROI['intensity'] = np.exp(-(x - a) ** 2 / (2 * sigma ** 2))
 
-                begin = np.random.randint(low=int(a - 2.5 * sigma), high=int(a - 2 * sigma))
-                end = np.random.randint(low=int(a + 2 * sigma), high=int(a + 2.5 * sigma))
+                begin = a - np.random.randint(low=int(2 * sigma), high=int(2.5 * sigma) + 1)
+                end = a + np.random.randint(low=int(2 * sigma), high=int(2.5 * sigma) + 1)
 
                 linear = interp1d([begin, end], [ROI['intensity'][begin], ROI['intensity'][end]])
                 ROI['intensity'][begin:end] = linear(np.arange(begin, end))
 
                 ROI['intensity'] /= np.max(ROI['intensity'])
-                ROI['intensity'][3:-3] += 0.2 * np.random.randn(points - 6)
+                success = False
+                while not success:
+                    noise = np.random.randn(points - 6)
+                    # check high noise in the peak domain
+                    if np.any(noise[a - int(2*sigma) - 2: a + int(2*sigma) - 3] < -2):
+                        success = True
+                ROI['intensity'][3:-3] += 0.25 * noise
                 ROI['intensity'][ROI['intensity'] < 0] = 0
 
-            self._postprocessing(ROI)
+            ROI['intensity'] /= np.max(ROI['intensity'])
+            self._postprocessing(ROI, full=False)
         return ROI
 
     def _stitching(self, ROI, peaks):
@@ -288,11 +299,10 @@ class ROIGenerator:
                 tmp_signal[shift:len(ROI['intensity']) + shift] = ROI['intensity']
                 ROI['intensity'] = tmp_signal
 
-            if ROI['label'] != 2:
-                # noise generation and normalization
-                ROI['intensity'] += noise_ampl * np.random.randn(len(ROI['intensity']))
-                ROI['intensity'] /= np.max(ROI['intensity'])
-                ROI['intensity'] = np.abs(ROI['intensity'])
+            # noise generation and normalization
+            ROI['intensity'] += noise_ampl * np.random.randn(len(ROI['intensity']))
+            ROI['intensity'] /= np.max(ROI['intensity'])
+            ROI['intensity'] = np.abs(ROI['intensity'])
 
         # interpolate to 'self.length' points
         points = len(ROI['intensity'])

@@ -18,7 +18,7 @@ def preprocess(signal, points=256):
 if __name__ == '__main__':
     if len(sys.argv) != 5:
         print('''Run script in the following format:
-python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
+    python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
         exit()
     path = sys.argv[1]
     delta_mz = float(sys.argv[2])
@@ -90,7 +90,7 @@ python3 run.py path_to_file delta_mz roi_minimum_points peak_minimum_points''')
             # add process_peaks into peaks
             for key in peaks:
                 peaks[key].extend(process_peaks[key])
-
+    
     df = pd.DataFrame.from_dict(peaks)
     df.to_csv('../results.csv')
     print('Processing is done!')
