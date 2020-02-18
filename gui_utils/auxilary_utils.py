@@ -23,7 +23,7 @@ class GetFolderWidget(QtWidgets.QWidget):
 
         button = QtWidgets.QToolButton()
         button.setText('...')
-        button.clicked.connect(self.set_file)
+        button.clicked.connect(self.set_folder)
 
         self.lineEdit = QtWidgets.QToolButton()
         self.lineEdit.setText(os.getcwd())
@@ -34,10 +34,10 @@ class GetFolderWidget(QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-    def set_file(self):
+    def set_folder(self):
         directory = str(QtWidgets.QFileDialog.getExistingDirectory())
         if directory:
             self.lineEdit.setText(directory)
 
-    def get_file(self):
+    def get_folder(self):
         return self.lineEdit.text()
