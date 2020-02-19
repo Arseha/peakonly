@@ -1,6 +1,25 @@
+import json
 import pymzml
 import numpy as np
 from tqdm import tqdm
+
+
+def construct_ROI(roi_dict):
+    """
+    Construct an ROI object from dict
+    :param roi: a dict with 'description' (not necessary),
+                            'code' (basically the name of file, not necessary),
+                            'label' (annotated class),
+                            'number of peaks' (quantity of peaks within ROI),
+                            'begins' (a list of scan numbers),
+                            'ends' (a list of scan numbers),
+                            'intersections' (a list of scan numbers),
+                            'scan' (first and last scan of ROI),
+                            'rt',
+                            'intensity',
+                            'mz'
+    """
+    return ROI(roi_dict['scan'], roi_dict['rt'], roi_dict['intensity'], roi_dict['mz'], np.mean(roi_dict['mz']))
 
 
 class ROI:
@@ -13,6 +32,35 @@ class ROI:
 
     def __repr__(self):
         return 'mz = {:.4f}, rt = {:.2f} - {:.2f}'.format(self.mzmean, self.rt[0], self.rt[1])
+
+    def save_annotated(self, path, label, code=None, number_of_peaks=0, begins=None, ends=None,
+                       intersections=None, description=None):
+        roi = dict()
+        roi['code'] = code
+        roi['label'] = label
+        roi['number of peaks'] = number_of_peaks
+        if begins is None:
+            roi['begins'] = []
+        else:
+            roi['begins'] = begins
+        if ends is None:
+            roi['ends'] = []
+        else:
+            roi['ends'] = ends
+        if intersections is None:
+            roi['intersections'] = []
+        else:
+            roi['intersections'] = intersections
+        roi['description'] = description
+
+        roi['scan'] = self.scan
+        roi['rt'] = self.rt
+        roi['intensity'] = self.i
+        roi['mz'] = self.mz
+
+        with open(path, 'w') as jsonfile:
+            json.dump(roi, jsonfile)
+
 
 class ProcessROI(ROI):
     def __init__(self, scan, rt, i, mz, mzmean):

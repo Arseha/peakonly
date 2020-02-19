@@ -15,9 +15,6 @@ class MainWindow(QtWidgets.QMainWindow):
         super().__init__()
         self.create_menu()
         self.list_of_files = self.create_list_of_files()
-        self.list_of_files.setSelectionMode(
-            QtWidgets.QAbstractItemView.ExtendedSelection
-        )
 
         # Main canvas and toolbar
         self.figure = plt.figure()
@@ -90,7 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def create_list_of_files(self):
         # List of opened files
         list_of_files = FileListWidget()
-        list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         list_of_files.itemDoubleClicked.connect(self.file_click)
         return list_of_files
 
