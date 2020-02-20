@@ -78,12 +78,13 @@ def get_closest(mzmean, mz, pos):
     return res
 
 
-def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3):
+def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=None):
     '''
     :param path: path to mzml file
     :param delta_mz:
     :param required_points:
     :param dropped_points: can be zero points
+    :param pbar: an pyQt5 progress bar to visualize
     :return: ROIs - a list of ROI objects found in current file
     '''
     # read all scans in mzML file
@@ -161,6 +162,8 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3):
             process_ROIs.pop(n)
         mzmean = np.delete(mzmean, to_delete)
         number += 1
+        if pbar is not None:
+            pbar.setValue(int(100 * number / len(scans)))
     # expand constructed roi
     for roi in ROIs:
         for n in range(dropped_points):

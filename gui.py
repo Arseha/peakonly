@@ -2,12 +2,13 @@ import sys
 import pymzml
 import matplotlib.pyplot as plt
 import numpy as np
+from functools import partial
 from PyQt5 import QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from utils.roi import get_closest
 from gui_utils.auxilary_utils import FileListWidget
-from gui_utils.mining import ParameterWindow
+from gui_utils.mining import AnnotationParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -38,7 +39,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set geometry and title
         self.setGeometry(300, 300, 900, 600)
-        self.setWindowTitle('Peakonly')
+        self.setWindowTitle('peakonly')
         self.show()
 
     def file_click(self, item):
@@ -62,11 +63,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         data_processing = QtWidgets.QAction('Processing', self)
 
-        data_mining = QtWidgets.QAction('Mining', self)
-        data_mining.triggered.connect(self.create_dataset)
+        data_mining = QtWidgets.QMenu('Mining', self)
+        data_mining_manual = QtWidgets.QAction('Manual annotation', self)
+        data_mining_manual.triggered.connect(partial(self.create_dataset, mode='manual'))
+        data_mining.addAction(data_mining_manual)
+        data_mining_semiautomatic = QtWidgets.QAction('Semi-automatic annotation', self)
+        data_mining_semiautomatic.triggered.connect(partial(self.create_dataset, mode='semi-automatic'))
+        data_mining.addAction(data_mining_semiautomatic)
 
         data.addAction(data_processing)
-        data.addAction(data_mining)
+        data.addMenu(data_mining)
 
         # visualization submenu
         visual = menu.addMenu('Visualization')
@@ -97,10 +103,10 @@ class MainWindow(QtWidgets.QMainWindow):
         for name in filenames:
             self.list_of_files.addFile(name)
 
-    def create_dataset(self):
+    def create_dataset(self, mode='manual'):
         files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
                  for i in range(self.list_of_files.count())]
-        subwindow = ParameterWindow(files, self)
+        subwindow = AnnotationParameterWindow(files, mode, self)
         subwindow.show()
 
     def plot(self, x, y):
