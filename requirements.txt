@@ -6,3 +6,4 @@ torch >= 1.2.0
 scipy
 tqdm
 pandas
+bintrees

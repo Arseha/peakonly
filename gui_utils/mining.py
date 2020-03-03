@@ -175,9 +175,15 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.canvas = FigureCanvas(self.figure)
 
         self.rois_list = FileListWidget()
-        for created_file in sorted(os.listdir(self.folder)):
+        files = []
+        for created_file in os.listdir(self.folder):
             if created_file.endswith('.json'):
-                self.rois_list.addFile(os.path.join(self.folder, created_file))
+                begin = created_file.find('_') + 1
+                end = created_file.find('.json')
+                code = int(created_file[begin:end])
+                files.append((code, created_file))
+        for _, file in sorted(files):
+            self.rois_list.addFile(os.path.join(self.folder, file))
 
         self._init_ui()  # initialize user interface
 
@@ -242,7 +248,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         if not self.current_flag:
             self.current_flag = True
             self.plotted_roi = self.ROIs[self.file_suffix]
-            filename = f'{self.file_prefix}{self.file_suffix}.json'
+            filename = f'{self.file_prefix}_{self.file_suffix}.json'
             self.plotted_path = os.path.join(self.folder, filename)
 
             self.figure.clear()
@@ -277,7 +283,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.plotted_roi.save_annotated(self.plotted_path,
                                         0, code, description=self.description)
         if self.current_flag:
-            self.parent.current_flag = False
+            self.current_flag = False
             self.rois_list.addFile(self.plotted_path)
             self.file_suffix += 1
             self.plot_current()
