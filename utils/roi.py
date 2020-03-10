@@ -62,6 +62,24 @@ class ROI:
         with open(path, 'w') as jsonfile:
             json.dump(roi, jsonfile)
 
+    def save_annotated_novel(self, path, code=None, label=0, number_of_peaks=0, peaks_labels=None, borders=None,
+                             description=None):
+        roi = dict()
+        roi['code'] = code
+        roi['label'] = label
+        roi['number of peaks'] = number_of_peaks
+        roi["peaks' labels"] = [] if peaks_labels is None else peaks_labels
+        roi['borders'] = [] if borders is None else borders
+        roi['description'] = description
+
+        roi['rt'] = self.rt
+        roi['scan'] = self.scan
+        roi['intensity'] = list(map(float, self.i))
+        roi['mz'] = list(map(float, self.mz))
+
+        with open(path, 'w') as jsonfile:
+            json.dump(roi, jsonfile)
+
 
 class ProcessROI(ROI):
     def __init__(self, scan, rt, i, mz, mzmean):

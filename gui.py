@@ -70,6 +70,9 @@ class MainWindow(QtWidgets.QMainWindow):
         data_mining_semiautomatic = QtWidgets.QAction('Semi-automatic annotation', self)
         data_mining_semiautomatic.triggered.connect(partial(self.create_dataset, mode='semi-automatic'))
         data_mining.addAction(data_mining_semiautomatic)
+        data_mining_novel_annotation = QtWidgets.QAction('Novel annotation', self)
+        data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='novel'))
+        data_mining.addAction(data_mining_novel_annotation)
 
         data.addAction(data_processing)
         data.addMenu(data_mining)

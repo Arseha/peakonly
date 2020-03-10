@@ -213,9 +213,10 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         # peak button
         peak_button = QtWidgets.QPushButton('Peak')
         peak_button.clicked.connect(self.peak)
-        # uncertain peak button
-        uncertain_button = QtWidgets.QPushButton('Uncertain peak')
-        uncertain_button.clicked.connect(self.uncertain)
+        if self.mode != 'novel':
+            # uncertain peak button
+            uncertain_button = QtWidgets.QPushButton('Uncertain peak')
+            uncertain_button.clicked.connect(self.uncertain)
         # skip button
         skip_button = QtWidgets.QPushButton('Skip')
         skip_button.clicked.connect(self.skip)
@@ -229,7 +230,8 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         button_layout.addWidget(plot_current_button)
         button_layout.addWidget(noise_button)
         button_layout.addWidget(peak_button)
-        button_layout.addWidget(uncertain_button)
+        if self.mode != 'novel':
+            button_layout.addWidget(uncertain_button)
         button_layout.addWidget(skip_button)
         if self.mode == 'semi-automatic':
             #  agree button
@@ -280,8 +282,11 @@ class AnnotationMainWindow(QtWidgets.QDialog):
     def noise(self):
         code = os.path.basename(self.plotted_path)
         code = code[:code.rfind('.')]
-        self.plotted_roi.save_annotated(self.plotted_path,
-                                        0, code, description=self.description)
+        label = 0
+        if self.mode == 'novel':
+            self.plotted_roi.save_annotated_novel(self.plotted_path, code, label, description=self.description)
+        else:
+            self.plotted_roi.save_annotated(self.plotted_path, label, code, description=self.description)
         if self.current_flag:
             self.current_flag = False
             self.rois_list.addFile(self.plotted_path)
@@ -296,8 +301,12 @@ class AnnotationMainWindow(QtWidgets.QDialog):
 
     def peak(self):
         title = 'Annotate peak borders and press "save".'
-        subwindow = AnnotationGetBordersWindow(title, 1, self)
-        subwindow.show()
+        if self.mode == 'novel':
+            subwindow = AnnotationGetNumberOfPeaksNovel(self)
+            subwindow.show()
+        else:
+            subwindow = AnnotationGetBordersWindow(title, 1, self)
+            subwindow.show()
 
     def uncertain(self):
         title = 'Try to pick out peaks, if possible, otherwise just press "save".'
@@ -358,7 +367,6 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         path2roi = self.rois_list.file2path[filename]
         with open(path2roi) as json_file:
             roi = json.load(json_file)
-
         self.plotted_roi = construct_ROI(roi)
         self.plotted_path = path2roi
         self.figure.clear()
@@ -367,15 +375,25 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         title = f'mz = {self.plotted_roi.mzmean:.3f}, ' \
                 f'rt = {self.plotted_roi.rt[0]:.1f} - {self.plotted_roi.rt[1]:.1f}'
 
-        if roi['label'] == 0:
-            title = 'label = noise, ' + title
-        elif roi['label'] == 1:
-            title = 'label = peak, ' + title
-        elif roi['label'] == 2:
-            title = 'label = uncertain peak, ' + title
+        if self.mode == 'novel':
+            if roi['label'] == 0:
+                title = 'label = noise, ' + title
+            elif roi['label'] == 1:
+                title = 'label = peak, ' + title
 
-        for begin, end in zip(roi['begins'], roi['ends']):
-            ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5)
+            for border, peak_label in zip(roi['borders'], roi["peaks' labels"]):
+                begin, end = border
+                ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5, label=peak_label)
+        else:
+            if roi['label'] == 0:
+                title = 'label = noise, ' + title
+            elif roi['label'] == 1:
+                title = 'label = peak, ' + title
+            elif roi['label'] == 2:
+                title = 'label = uncertain peak, ' + title
+
+            for begin, end in zip(roi['begins'], roi['ends']):
+                ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5)
 
         ax.set_title(title)
         ax.legend(loc='best')
@@ -462,6 +480,137 @@ class AnnotationGetBordersWindow(QtWidgets.QDialog):
         code = code[:code.rfind('.')]
         self.parent.plotted_roi.save_annotated(self.parent.plotted_path, self.label, code, number_of_peaks,
                                                begins, ends, intersections, self.parent.description)
+        if self.parent.current_flag:
+            self.parent.current_flag = False
+            self.parent.rois_list.addFile(self.parent.plotted_path)
+            self.parent.file_suffix += 1
+            self.parent.plot_current()
+        else:
+            self.parent.plotted_item.setSelected(False)
+            self.parent.plotted_item_index = min(self.parent.plotted_item_index + 1,
+                                                 self.parent.rois_list.count() - 1)
+            self.parent.plotted_item = self.parent.rois_list.item(self.parent.plotted_item_index)
+            self.parent.plotted_item.setSelected(True)
+            self.parent.plot_chosen()
+        self.close()
+
+
+class AnnotationGetNumberOfPeaksNovel(QtWidgets.QDialog):
+    def __init__(self, parent: AnnotationMainWindow):
+        self.parent = parent
+        super().__init__(parent)
+
+        label = QtWidgets.QLabel()
+        label.setText('Print number of peaks in current ROI:')
+
+        n_of_peaks_layout = QtWidgets.QHBoxLayout()
+        n_of_peaks_label = QtWidgets.QLabel()
+        n_of_peaks_label.setText('number of peaks = ')
+        self.n_of_peaks_getter = QtWidgets.QLineEdit(self)
+        self.n_of_peaks_getter.setText('0')
+        n_of_peaks_layout.addWidget(n_of_peaks_label)
+        n_of_peaks_layout.addWidget(self.n_of_peaks_getter)
+
+        continue_button = QtWidgets.QPushButton('Continue')
+        continue_button.clicked.connect(self.proceed)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addWidget(label)
+        main_layout.addLayout(n_of_peaks_layout)
+        main_layout.addWidget(continue_button)
+
+        self.setLayout(main_layout)
+
+    def proceed(self):
+        try:
+            number_of_peaks = int(self.n_of_peaks_getter.text())
+        except ValueError:
+            return  # to do: create error window
+
+        subwindow = AnnotationGetBordersWindowNovel(number_of_peaks, self.parent)
+        subwindow.show()
+        self.close()
+
+
+class AnnotationPeakLayoutNovel(QtWidgets.QWidget):
+    def __init__(self, peak_number, parent):
+        super().__init__(parent)
+
+        borders_layout = QtWidgets.QHBoxLayout()
+
+        label = QtWidgets.QLabel()
+        label.setText(f'Peak #{peak_number}')
+
+        begin_label = QtWidgets.QLabel()
+        begin_label.setText('begin = ')
+        self.begin_getter = QtWidgets.QLineEdit(self)
+        end_label = QtWidgets.QLabel()
+        end_label.setText('end = ')
+        self.end_getter = QtWidgets.QLineEdit(self)
+        borders_layout.addWidget(begin_label)
+        borders_layout.addWidget(self.begin_getter)
+        borders_layout.addWidget(end_label)
+        borders_layout.addWidget(self.end_getter)
+
+        peak_label_layout = QtWidgets.QHBoxLayout()
+        peak_label_label = QtWidgets.QLabel()
+        peak_label_label.setText('peak label = ')
+        self.peak_label_getter = QtWidgets.QComboBox(self)
+        self.peak_label_getter.addItems(['<None>', 'Good (smooth, high intensive)', 'Low intensive (close to LOD)',
+                                         'Lousy (not good)', 'Noisy, strange (probably chemical noise)'])
+        peak_label_layout.addWidget(peak_label_label)
+        peak_label_layout.addWidget(self.peak_label_getter)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addWidget(label)
+        main_layout.addLayout(borders_layout)
+        main_layout.addLayout(peak_label_layout)
+
+        self.setLayout(main_layout)
+
+
+class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
+    def __init__(self, number_of_peaks: int, parent: AnnotationMainWindow):
+        self.str2label = {'': 0, '<None>': 0, 'Good (smooth, high intensive)': 1,
+                          'Low intensive (close to LOD)': 2, 'Lousy (not good)': 3,
+                          'Noisy, strange (probably chemical noise)': 4}
+        self.number_of_peaks = number_of_peaks
+        self.parent = parent
+        super().__init__(parent)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        self.peak_layouts = []
+        for i in range(number_of_peaks):
+            self.peak_layouts.append(AnnotationPeakLayoutNovel(i, self))
+            main_layout.addWidget(self.peak_layouts[-1])
+
+        save_button = QtWidgets.QPushButton('Save')
+        save_button.clicked.connect(self.save)
+
+        main_layout.addWidget(save_button)
+        self.setLayout(main_layout)
+
+    def save(self):
+        try:
+            code = os.path.basename(self.parent.plotted_path)
+            code = code[:code.rfind('.')]
+            label = 1
+            number_of_peaks = self.number_of_peaks
+            peaks_labels = []
+            borders = []
+            for pl in self.peak_layouts:
+                peak_label = self.str2label[pl.peak_label_getter.currentText()]
+                peaks_labels.append(peak_label)
+
+                begin = int(pl.begin_getter.text())
+                end = int(pl.end_getter.text())
+                borders.append((begin, end))
+        except ValueError:
+            return  # to do: create error window:
+
+        self.parent.plotted_roi.save_annotated_novel(self.parent.plotted_path, code, label, number_of_peaks,
+                                                     peaks_labels, borders, description=self.parent.description)
+
         if self.parent.current_flag:
             self.parent.current_flag = False
             self.parent.rois_list.addFile(self.parent.plotted_path)
