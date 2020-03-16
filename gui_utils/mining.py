@@ -165,6 +165,14 @@ class AnnotationMainWindow(QtWidgets.QDialog):
             # variables where save CNNs predictions
             self.label = 0
             self.borders = []
+        elif self.mode == 'skip noise':
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            self.classify = Classifier()
+            self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
+            self.classify.to(self.device)
+            self.classify.eval()
+            # variables where save CNN predictions
+            self.label = 0
         # shuffle ROIs
         self.ROIs = ROIs
         np.random.seed(1313)
@@ -213,7 +221,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         # peak button
         peak_button = QtWidgets.QPushButton('Peak')
         peak_button.clicked.connect(self.peak)
-        if self.mode != 'novel':
+        if self.mode != 'novel' and self.mode != 'skip noise':
             # uncertain peak button
             uncertain_button = QtWidgets.QPushButton('Uncertain peak')
             uncertain_button.clicked.connect(self.uncertain)
@@ -230,7 +238,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         button_layout.addWidget(plot_current_button)
         button_layout.addWidget(noise_button)
         button_layout.addWidget(peak_button)
-        if self.mode != 'novel':
+        if self.mode != 'novel' and self.mode != 'skip noise':
             button_layout.addWidget(uncertain_button)
         button_layout.addWidget(skip_button)
         if self.mode == 'semi-automatic':
@@ -250,6 +258,13 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         if not self.current_flag:
             self.current_flag = True
             self.plotted_roi = self.ROIs[self.file_suffix]
+            if self.mode == 'skip noise':
+                self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+                while self.label == 0:
+                    self.file_suffix += 1
+                    self.plotted_roi = self.ROIs[self.file_suffix]
+                    self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+
             filename = f'{self.file_prefix}_{self.file_suffix}.json'
             self.plotted_path = os.path.join(self.folder, filename)
 
@@ -283,7 +298,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         code = os.path.basename(self.plotted_path)
         code = code[:code.rfind('.')]
         label = 0
-        if self.mode == 'novel':
+        if self.mode == 'novel' or self.mode == 'skip noise':
             self.plotted_roi.save_annotated_novel(self.plotted_path, code, label, description=self.description)
         else:
             self.plotted_roi.save_annotated(self.plotted_path, label, code, description=self.description)
@@ -301,7 +316,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
 
     def peak(self):
         title = 'Annotate peak borders and press "save".'
-        if self.mode == 'novel':
+        if self.mode == 'novel' or self.mode == 'skip noise':
             subwindow = AnnotationGetNumberOfPeaksNovel(self)
             subwindow.show()
         else:
@@ -375,7 +390,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         title = f'mz = {self.plotted_roi.mzmean:.3f}, ' \
                 f'rt = {self.plotted_roi.rt[0]:.1f} - {self.plotted_roi.rt[1]:.1f}'
 
-        if self.mode == 'novel':
+        if self.mode == 'novel' or self.mode == 'skip noise':
             if roi['label'] == 0:
                 title = 'label = noise, ' + title
             elif roi['label'] == 1:

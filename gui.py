@@ -73,6 +73,9 @@ class MainWindow(QtWidgets.QMainWindow):
         data_mining_novel_annotation = QtWidgets.QAction('Novel annotation', self)
         data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='novel'))
         data_mining.addAction(data_mining_novel_annotation)
+        data_mining_novel_skip_noise = QtWidgets.QAction('Skip noise', self)
+        data_mining_novel_skip_noise.triggered.connect(partial(self.create_dataset, mode='skip noise'))
+        data_mining.addAction(data_mining_novel_skip_noise)
 
         data.addAction(data_processing)
         data.addMenu(data_mining)
