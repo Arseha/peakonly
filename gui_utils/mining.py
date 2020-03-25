@@ -129,9 +129,9 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         parameter_layout.addWidget(self.run_button)
 
         # main layout
-        main_layout = parameter_layout
-        main_layout.addWidget(save_to_label)
-        main_layout.addWidget(self.folder_widget)
+        main_layout = QtWidgets.QHBoxLayout()
+        main_layout.addLayout(file_layout)
+        main_layout.addLayout(parameter_layout)
 
         # main layout + pbar
         main_pbar_layout = QtWidgets.QVBoxLayout()
@@ -244,8 +244,8 @@ class AnnotationMainWindow(QtWidgets.QDialog):
 
         # canvas and files list layout
         canvas_files_layout = QtWidgets.QHBoxLayout()
-        canvas_files_layout.addLayout(canvas_layout)
-        canvas_files_layout.addWidget(self.rois_list)
+        canvas_files_layout.addLayout(canvas_layout, 80)
+        canvas_files_layout.addWidget(self.rois_list, 20)
 
         if self.mode != 'reannotation':
             # plot current button
@@ -331,7 +331,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         code = os.path.basename(self.plotted_path)
         code = code[:code.rfind('.')]
         label = 0
-        self.plotted_roi.save_annotated_novel(self.plotted_path, code, label, description=self.current_description)
+        self.plotted_roi.save_annotated(self.plotted_path, code, label, description=self.current_description)
 
         if self.current_flag:
             self.current_flag = False
@@ -514,7 +514,7 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
         main_layout = QtWidgets.QVBoxLayout()
         self.peak_layouts = []
         for i in range(number_of_peaks):
-            self.peak_layouts.append(AnnotationPeakLayoutNovel(i, self))
+            self.peak_layouts.append(AnnotationPeakLayoutNovel(i + 1, self))
             main_layout.addWidget(self.peak_layouts[-1])
 
         save_button = QtWidgets.QPushButton('Save')
@@ -541,7 +541,7 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
         except ValueError:
             return  # to do: create error window:
 
-        self.parent.plotted_roi.save_annotated_novel(self.parent.plotted_path, code, label, number_of_peaks,
+        self.parent.plotted_roi.save_annotated(self.parent.plotted_path, code, label, number_of_peaks,
                                                      peaks_labels, borders, description=self.parent.current_description)
 
         if self.parent.current_flag:
