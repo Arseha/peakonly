@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import torch
 import numpy as np
@@ -11,6 +10,38 @@ from utils.roi import get_ROIs, construct_ROI
 from utils.models import Classifier, Integrator
 from utils.run_utils import classifier_prediction, border_prediction
 from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget
+
+
+class ReAnnotationParameterWindow(QtWidgets.QDialog):
+    def __init__(self, mode='manual', parent=None):
+        self.mode = mode
+        self.parent = parent
+        super().__init__(parent)
+
+        save_to_label = QtWidgets.QLabel()
+        save_to_label.setText('Choose a folder with annotated ROIs:')
+        self.folder_widget = GetFolderWidget()
+
+        self.run_button = QtWidgets.QPushButton('Run reannotation')
+        self.run_button.clicked.connect(self.start_reannotation)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addWidget(save_to_label)
+        main_layout.addWidget(self.folder_widget)
+        main_layout.addWidget(self.run_button)
+
+        self.setLayout(main_layout)
+
+    def start_reannotation(self):
+        try:
+            folder = self.folder_widget.get_folder()
+            subwindow = AnnotationMainWindow([], folder, None, None,
+                                             None, self.mode,
+                                             None, parent=self.parent)
+            subwindow.show()
+            self.close()
+        except ValueError:
+            pass  # to do: create error window
 
 
 class AnnotationParameterWindow(QtWidgets.QDialog):
@@ -90,17 +121,17 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         parameter_layout.addWidget(self.mz_getter)
         parameter_layout.addWidget(roi_points_label)
         parameter_layout.addWidget(self.roi_points_getter)
-        if self.mode == 'semi-automatic':
-            parameter_layout.addWidget(peak_points_label)
-            parameter_layout.addWidget(self.peak_points_getter)
+        # if self.mode == 'semi-automatic':
+        #     parameter_layout.addWidget(peak_points_label)
+        #     parameter_layout.addWidget(self.peak_points_getter)
         parameter_layout.addWidget(dropped_points_label)
         parameter_layout.addWidget(self.dropped_points_getter)
         parameter_layout.addWidget(self.run_button)
 
         # main layout
-        main_layout = QtWidgets.QHBoxLayout()
-        main_layout.addLayout(file_layout)
-        main_layout.addLayout(parameter_layout)
+        main_layout = parameter_layout
+        main_layout.addWidget(save_to_label)
+        main_layout.addWidget(self.folder_widget)
 
         # main layout + pbar
         main_pbar_layout = QtWidgets.QVBoxLayout()
@@ -120,14 +151,17 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
             minimum_peak_points = None
             if self.mode == 'semi-automatic':
                 minimum_peak_points = int(self.peak_points_getter.text())
-            path2mzml = None
-            for file in self.list_of_files.selectedItems():
-                path2mzml = self.list_of_files.file2path[file.text()]
-            if path2mzml is None:
-                raise ValueError
-            folder = self.folder_widget.get_folder()
 
-            ROIs = get_ROIs(path2mzml, delta_mz, required_points, dropped_points, pbar=self.pbar)
+            folder = self.folder_widget.get_folder()
+            if self.mode != 'reannotation':
+                path2mzml = None
+                for file in self.list_of_files.selectedItems():
+                    path2mzml = self.list_of_files.file2path[file.text()]
+                if path2mzml is None:
+                    raise ValueError
+                ROIs = get_ROIs(path2mzml, delta_mz, required_points, dropped_points, pbar=self.pbar)
+            else:
+                ROIs = []
             subwindow = AnnotationMainWindow(ROIs, folder, file_prefix, file_suffix,
                                              description, self.mode,
                                              minimum_peak_points, parent=self.parent)
@@ -143,6 +177,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.file_prefix = file_prefix
         self.file_suffix = file_suffix
         self.description = description
+        self.current_description = description
         self.folder = folder
         self.mode = mode
         self.plotted_roi = None
@@ -151,21 +186,21 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.plotted_item_index = -1
         self.current_flag = False
 
-        if self.mode == 'semi-automatic':  # load models
-            self.minimum_peak_points = minimum_peak_points
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.classify = Classifier()
-            self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
-            self.classify.to(self.device)
-            self.classify.eval()
-            self.integrate = Integrator()
-            self.integrate.load_state_dict(torch.load('data/Integrator', map_location=self.device))
-            self.integrate.to(self.device)
-            self.integrate.eval()
-            # variables where save CNNs predictions
-            self.label = 0
-            self.borders = []
-        elif self.mode == 'skip noise':
+        # if self.mode == 'semi-automatic':  # load models
+        #     self.minimum_peak_points = minimum_peak_points
+        #     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        #     self.classify = Classifier()
+        #     self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
+        #     self.classify.to(self.device)
+        #     self.classify.eval()
+        #    self.integrate = Integrator()
+        #     self.integrate.load_state_dict(torch.load('data/Integrator', map_location=self.device))
+        #     self.integrate.to(self.device)
+        #     self.integrate.eval()
+        #     # variables where save CNNs predictions
+        #     self.label = 0
+        #     self.borders = []
+        if self.mode == 'skip noise':
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             self.classify = Classifier()
             self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
@@ -212,19 +247,16 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         canvas_files_layout.addLayout(canvas_layout)
         canvas_files_layout.addWidget(self.rois_list)
 
-        # plot current button
-        plot_current_button = QtWidgets.QPushButton('Plot current ROI')
-        plot_current_button.clicked.connect(self.plot_current)
+        if self.mode != 'reannotation':
+            # plot current button
+            plot_current_button = QtWidgets.QPushButton('Plot current ROI')
+            plot_current_button.clicked.connect(self.plot_current)
         # noise button
         noise_button = QtWidgets.QPushButton('Noise')
         noise_button.clicked.connect(self.noise)
         # peak button
         peak_button = QtWidgets.QPushButton('Peak')
         peak_button.clicked.connect(self.peak)
-        if self.mode != 'novel' and self.mode != 'skip noise':
-            # uncertain peak button
-            uncertain_button = QtWidgets.QPushButton('Uncertain peak')
-            uncertain_button.clicked.connect(self.uncertain)
         # skip button
         skip_button = QtWidgets.QPushButton('Skip')
         skip_button.clicked.connect(self.skip)
@@ -235,17 +267,16 @@ class AnnotationMainWindow(QtWidgets.QDialog):
 
         # button layout
         button_layout = QtWidgets.QHBoxLayout()
-        button_layout.addWidget(plot_current_button)
+        if self.mode != 'reannotation':
+            button_layout.addWidget(plot_current_button)
         button_layout.addWidget(noise_button)
         button_layout.addWidget(peak_button)
-        if self.mode != 'novel' and self.mode != 'skip noise':
-            button_layout.addWidget(uncertain_button)
         button_layout.addWidget(skip_button)
-        if self.mode == 'semi-automatic':
-            #  agree button
-            agree_button = QtWidgets.QPushButton('Save CNNs annotation')
-            agree_button.clicked.connect(self.save_auto_annotation)
-            button_layout.addWidget(agree_button)
+        # if self.mode == 'semi-automatic':
+        #     #  agree button
+        #     agree_button = QtWidgets.QPushButton('Save CNNs annotation')
+        #     agree_button.clicked.connect(self.save_auto_annotation)
+        #     button_layout.addWidget(agree_button)
         button_layout.addWidget(plot_chosen_button)
 
         # main layout
@@ -255,53 +286,53 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.setLayout(main_layout)
 
     def plot_current(self):
-        if not self.current_flag:
-            self.current_flag = True
-            self.plotted_roi = self.ROIs[self.file_suffix]
-            if self.mode == 'skip noise':
-                self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
-                while self.label == 0:
-                    self.file_suffix += 1
-                    self.plotted_roi = self.ROIs[self.file_suffix]
+        if self.mode != 'reannotation':
+            if not self.current_flag:
+                self.current_flag = True
+                self.current_description = self.description
+                self.plotted_roi = self.ROIs[self.file_suffix]
+                if self.mode == 'skip noise':
                     self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+                    while self.label == 0:
+                        self.file_suffix += 1
+                        self.plotted_roi = self.ROIs[self.file_suffix]
+                        self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
 
-            filename = f'{self.file_prefix}_{self.file_suffix}.json'
-            self.plotted_path = os.path.join(self.folder, filename)
+                filename = f'{self.file_prefix}_{self.file_suffix}.json'
+                self.plotted_path = os.path.join(self.folder, filename)
 
-            self.figure.clear()
-            ax = self.figure.add_subplot(111)
-            ax.plot(self.plotted_roi.i, label=filename)
-            title = f'mz = {self.plotted_roi.mzmean:.3f}, ' \
-                    f'rt = {self.plotted_roi.rt[0]:.1f} - {self.plotted_roi.rt[1]:.1f}'
+                self.figure.clear()
+                ax = self.figure.add_subplot(111)
+                ax.plot(self.plotted_roi.i, label=filename)
+                title = f'mz = {self.plotted_roi.mzmean:.3f}, ' \
+                        f'rt = {self.plotted_roi.rt[0]:.1f} - {self.plotted_roi.rt[1]:.1f}'
 
-            if self.mode == 'semi-automatic':  # label and border predictions
-                self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
-                self.borders = []
-                if self.label != 0:
-                    self.borders = border_prediction(self.plotted_roi, self.integrate,
-                                                     self.device, self.minimum_peak_points)
-                if self.label == 0:
-                    title = 'label = noise, ' + title
-                elif self.label == 1:
-                    title = 'label = peak, ' + title
-                elif self.label == 2:
-                    title = 'label = uncertain peak, ' + title
+                # if self.mode == 'semi-automatic':  # label and border predictions
+                #     self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+                #     self.borders = []
+                #     if self.label != 0:
+                #         self.borders = border_prediction(self.plotted_roi, self.integrate,
+                #                                          self.device, self.minimum_peak_points)
+                #     if self.label == 0:
+                #         title = 'label = noise, ' + title
+                #     elif self.label == 1:
+                #         title = 'label = peak, ' + title
+                #     elif self.label == 2:
+                #         title = 'label = uncertain peak, ' + title
+                #
+                #     for begin, end in self.borders:
+                #         ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5)
 
-                for begin, end in self.borders:
-                    ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5)
-
-            ax.legend(loc='best')
-            ax.set_title(title)
-            self.canvas.draw()  # refresh canvas
+                ax.legend(loc='best')
+                ax.set_title(title)
+                self.canvas.draw()  # refresh canvas
 
     def noise(self):
         code = os.path.basename(self.plotted_path)
         code = code[:code.rfind('.')]
         label = 0
-        if self.mode == 'novel' or self.mode == 'skip noise':
-            self.plotted_roi.save_annotated_novel(self.plotted_path, code, label, description=self.description)
-        else:
-            self.plotted_roi.save_annotated(self.plotted_path, label, code, description=self.description)
+        self.plotted_roi.save_annotated_novel(self.plotted_path, code, label, description=self.current_description)
+
         if self.current_flag:
             self.current_flag = False
             self.rois_list.addFile(self.plotted_path)
@@ -316,16 +347,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
 
     def peak(self):
         title = 'Annotate peak borders and press "save".'
-        if self.mode == 'novel' or self.mode == 'skip noise':
-            subwindow = AnnotationGetNumberOfPeaksNovel(self)
-            subwindow.show()
-        else:
-            subwindow = AnnotationGetBordersWindow(title, 1, self)
-            subwindow.show()
-
-    def uncertain(self):
-        title = 'Try to pick out peaks, if possible, otherwise just press "save".'
-        subwindow = AnnotationGetBordersWindow(title, 2, self)
+        subwindow = AnnotationGetNumberOfPeaksNovel(self)
         subwindow.show()
 
     def skip(self):
@@ -382,6 +404,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         path2roi = self.rois_list.file2path[filename]
         with open(path2roi) as json_file:
             roi = json.load(json_file)
+        self.current_description = roi['description']
         self.plotted_roi = construct_ROI(roi)
         self.plotted_path = path2roi
         self.figure.clear()
@@ -390,124 +413,19 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         title = f'mz = {self.plotted_roi.mzmean:.3f}, ' \
                 f'rt = {self.plotted_roi.rt[0]:.1f} - {self.plotted_roi.rt[1]:.1f}'
 
-        if self.mode == 'novel' or self.mode == 'skip noise':
-            if roi['label'] == 0:
-                title = 'label = noise, ' + title
-            elif roi['label'] == 1:
-                title = 'label = peak, ' + title
+        if roi['label'] == 0:
+            title = 'label = noise, ' + title
+        elif roi['label'] == 1:
+            title = 'label = peak, ' + title
 
-            for border, peak_label in zip(roi['borders'], roi["peaks' labels"]):
-                begin, end = border
-                ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5, label=peak_label)
-        else:
-            if roi['label'] == 0:
-                title = 'label = noise, ' + title
-            elif roi['label'] == 1:
-                title = 'label = peak, ' + title
-            elif roi['label'] == 2:
-                title = 'label = uncertain peak, ' + title
-
-            for begin, end in zip(roi['begins'], roi['ends']):
-                ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5)
+        for border, peak_label in zip(roi['borders'], roi["peaks' labels"]):
+            begin, end = border
+            ax.fill_between(range(begin, end + 1), self.plotted_roi.i[begin:end + 1], alpha=0.5, label=peak_label)
 
         ax.set_title(title)
         ax.legend(loc='best')
         self.canvas.draw()  # refresh canvas
         self.current_flag = False
-
-
-class AnnotationGetBordersWindow(QtWidgets.QDialog):
-    def __init__(self, title: str, label: int, parent: AnnotationMainWindow):
-        self.parent = parent
-        self.label = label  # ROIs class
-        super().__init__(parent)
-
-        label = QtWidgets.QLabel()
-        label.setText(title)
-
-        n_of_peaks_layout = QtWidgets.QHBoxLayout()
-        n_of_peaks_label = QtWidgets.QLabel()
-        n_of_peaks_label.setText('number of peaks = ')
-        self.n_of_peaks_getter = QtWidgets.QLineEdit(self)
-        self.n_of_peaks_getter.setText('0')
-        n_of_peaks_layout.addWidget(n_of_peaks_label)
-        n_of_peaks_layout.addWidget(self.n_of_peaks_getter)
-
-        begins_layout = QtWidgets.QHBoxLayout()
-        begins_label = QtWidgets.QLabel()
-        begins_label.setText('begins = ')
-        self.begins_getter = QtWidgets.QLineEdit(self)
-        begins_layout.addWidget(begins_label)
-        begins_layout.addWidget(self.begins_getter)
-
-        ends_layout = QtWidgets.QHBoxLayout()
-        ends_label = QtWidgets.QLabel()
-        ends_label.setText('ends = ')
-        self.ends_getter = QtWidgets.QLineEdit(self)
-        ends_layout.addWidget(ends_label)
-        ends_layout.addWidget(self.ends_getter)
-
-        intersections_layout = QtWidgets.QHBoxLayout()
-        intersections_label = QtWidgets.QLabel()
-        intersections_label.setText('intersections = ')
-        self.intersections_getter = QtWidgets.QLineEdit(self)
-        intersections_layout.addWidget(intersections_label)
-        intersections_layout.addWidget(self.intersections_getter)
-
-        save_button = QtWidgets.QPushButton('Save')
-        save_button.clicked.connect(self.save_roi)
-
-        main_layout = QtWidgets.QVBoxLayout()
-        main_layout.addWidget(label)
-        main_layout.addLayout(n_of_peaks_layout)
-        main_layout.addLayout(begins_layout)
-        main_layout.addLayout(ends_layout)
-        main_layout.addLayout(intersections_layout)
-        main_layout.addWidget(save_button)
-
-        self.setLayout(main_layout)
-
-    def save_roi(self):
-        try:
-            number_of_peaks = int(self.n_of_peaks_getter.text())
-            begins = []
-            for begin in re.split('[ ;.,]+', self.begins_getter.text()):
-                if begin:
-                    begins.append(int(begin))
-            ends = []
-            for end in re.split('[ ;.,]+', self.ends_getter.text()):
-                if end:
-                    ends.append(int(end))
-            intersections = []
-            for intersection in re.split('[ ;.,]+', self.intersections_getter.text()):
-                if intersection:
-                    intersections.append(int(intersection))
-            if number_of_peaks != len(begins) or number_of_peaks != len(ends):
-                raise ValueError
-            elif number_of_peaks == 0 and len(intersections) != 0:
-                raise ValueError
-            elif number_of_peaks != 0 and number_of_peaks - 1 != len(intersections):
-                raise ValueError
-        except ValueError:
-            return  # to do: create error window
-
-        code = os.path.basename(self.parent.plotted_path)
-        code = code[:code.rfind('.')]
-        self.parent.plotted_roi.save_annotated(self.parent.plotted_path, self.label, code, number_of_peaks,
-                                               begins, ends, intersections, self.parent.description)
-        if self.parent.current_flag:
-            self.parent.current_flag = False
-            self.parent.rois_list.addFile(self.parent.plotted_path)
-            self.parent.file_suffix += 1
-            self.parent.plot_current()
-        else:
-            self.parent.plotted_item.setSelected(False)
-            self.parent.plotted_item_index = min(self.parent.plotted_item_index + 1,
-                                                 self.parent.rois_list.count() - 1)
-            self.parent.plotted_item = self.parent.rois_list.item(self.parent.plotted_item_index)
-            self.parent.plotted_item.setSelected(True)
-            self.parent.plot_chosen()
-        self.close()
 
 
 class AnnotationGetNumberOfPeaksNovel(QtWidgets.QDialog):
@@ -624,7 +542,7 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
             return  # to do: create error window:
 
         self.parent.plotted_roi.save_annotated_novel(self.parent.plotted_path, code, label, number_of_peaks,
-                                                     peaks_labels, borders, description=self.parent.description)
+                                                     peaks_labels, borders, description=self.parent.current_description)
 
         if self.parent.current_flag:
             self.parent.current_flag = False

@@ -34,35 +34,7 @@ class ROI:
     def __repr__(self):
         return 'mz = {:.4f}, rt = {:.2f} - {:.2f}'.format(self.mzmean, self.rt[0], self.rt[1])
 
-    def save_annotated(self, path, label, code=None, number_of_peaks=0, begins=None, ends=None,
-                       intersections=None, description=None):
-        roi = dict()
-        roi['code'] = code
-        roi['label'] = label
-        roi['number of peaks'] = number_of_peaks
-        if begins is None:
-            roi['begins'] = []
-        else:
-            roi['begins'] = begins
-        if ends is None:
-            roi['ends'] = []
-        else:
-            roi['ends'] = ends
-        if intersections is None:
-            roi['intersections'] = []
-        else:
-            roi['intersections'] = intersections
-        roi['description'] = description
-
-        roi['scan'] = self.scan
-        roi['rt'] = self.rt
-        roi['intensity'] = list(map(float, self.i))
-        roi['mz'] = list(map(float, self.mz))
-
-        with open(path, 'w') as jsonfile:
-            json.dump(roi, jsonfile)
-
-    def save_annotated_novel(self, path, code=None, label=0, number_of_peaks=0, peaks_labels=None, borders=None,
+    def save_annotated(self, path, code=None, label=0, number_of_peaks=0, peaks_labels=None, borders=None,
                              description=None):
         roi = dict()
         roi['code'] = code

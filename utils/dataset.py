@@ -317,6 +317,284 @@ class ROIGenerator:
         ROI['intersections'] = ROI['intersections'] * (self.length - 1) // (points - 1)
 
 
+class NovelROIGenerator:
+    def __init__(self, mode='classification', length=256,
+                 sigma=None, max_peaks=None):
+        '''
+        Generates data for model training.
+        mode - 'classification'/'segmentation'/'detection'
+        length - total number of points in spectrum
+        sigma - range for min/max dispersion for gauss
+        noise_prob - probability of noise
+        max_peaks - maximum number of peaks in spectrum
+        '''
+        if sigma is None:
+            sigma = [3, 16]
+        self.sigma = sigma
+        self.mode = mode
+        self.length = length
+        self.peak_gen = PeakGenerator(sigma)
+        self.max_peaks = max_peaks
+
+    def __call__(self):
+        '''
+        Generates annotated ROI
+        '''
+        label = np.random.choice([0, 1], p=[1 / 4, 3 / 4])
+        gen_p = 0.4
+        bad_shape_p = 0.1
+        double_p = 0
+
+        ROI = {'label': label, 'number of peaks': 0, 'begins': [],
+               'ends': [], 'intersections': [], 'intensity': []}
+        if label == 0:  # 0 stands for noise
+            points = np.random.randint(low=self.length // 16, high=self.length)
+            ROI['intensity'] = [0.] * points
+            self._postprocessing(ROI)
+        elif label == 1:  # 1 stands for peak
+            shape = np.random.choice(['bad', 'good', 'double'], p=[bad_shape_p, 1 - bad_shape_p - double_p, double_p])
+            if shape == 'bad':
+                shape = np.random.choice(['noise', 'small'], p=[1/4, 3/4])
+                if shape == 'small':
+                    ROI['number of peaks'] = 1
+                    ROI['begins'] = [3]
+                    points = np.random.randint(low=self.length // 16, high=self.length // 8)
+                    ROI['ends'] = [points - 3]
+                    sigma = (points - 6) / 6
+
+                    x = np.arange(points)
+                    ROI['intensity'] = np.exp(-(x - points / 2) ** 2 / (2 * sigma ** 2))
+
+                    ROI['intensity'] -= 0.15 * np.random.randn(points)
+                    ROI['intensity'] -= np.min(ROI['intensity'])
+                    ROI['intensity'] /= np.max(ROI['intensity'])
+                    ROI['intensity'][:2] = 0
+                    ROI['intensity'][-2:] = 0
+                    self._postprocessing(ROI, full=False)
+                elif shape == 'noise':
+                    ROI['number of peaks'] = 1
+                    points = np.random.randint(low=self.length // 2, high=self.length)
+                    sigma = points / 32
+                    a = np.random.randint(low=sigma * 3 + 1, high=points - 1 - sigma * 3)
+                    ROI['begins'] = [int(a - 3 * sigma)]
+                    ROI['ends'] = [int(a + 3 * sigma)]
+
+                    x = np.arange(points)
+                    ROI['intensity'] = 0.2 * np.exp(-(x - points // 2) ** 2 / (points // 2) ** 2)  # background noise
+                    ROI['intensity'] += np.exp(-(x - a) ** 2 / (2 * sigma ** 2))
+
+                    ROI['intensity'] -= 0.15 * np.random.randn(points)
+                    ROI['intensity'] -= np.min(ROI['intensity'])
+                    ROI['intensity'] /= np.max(ROI['intensity'])
+                    self._postprocessing(ROI, full=False)
+            elif shape == 'double':  # double peaks
+                ROI['number of peaks'] = 2
+                # first peak
+                up1 = np.random.uniform(low=self.sigma[0], high=self.sigma[1] // 2)
+                down1 = np.random.uniform(low=self.sigma[0], high=self.sigma[1] // 2)
+                a1 = np.random.uniform(low=up1 * 3.5, high=np.min((self.length - down1 * 3.5, 0.6 * self.length)))
+                a1_point = int(a1)
+
+                # second peak
+                up2 = np.random.uniform(low=1, high=self.sigma[1] / 2)
+                down2 = np.random.uniform(low=1, high=self.sigma[1] / 2)
+                a2 = np.random.uniform(low=a1 + 1.5 * (down1 + up2), high=self.length - down2 * 3.5)
+                a2_point = int(a2)
+                alpha = np.random.uniform(low=0.5, high=2)
+
+                # value generation
+                x = np.arange(self.length)
+                ROI['intensity'] = np.zeros_like(x, dtype='float32')
+                ROI['intensity'][:a1_point] = np.exp(-(x[:a1_point] - a1) ** 2 / (2 * up1 ** 2)) + alpha * np.exp(
+                    -(x[:a1_point] - a2) ** 2 / (2 * up2 ** 2))
+                ROI['intensity'][a1_point:a2_point] = np.exp(-(x[a1_point:a2_point] - a1) ** 2 / (2 * down1 ** 2)) + alpha * np.exp(
+                    -(x[a1_point:a2_point] - a2) ** 2 / (2 * up2 ** 2))
+                ROI['intensity'][a2_point:] = np.exp(-(x[a2_point:] - a1) ** 2 / (2 * down1 ** 2)) + alpha * np.exp(
+                    -(x[a2_point:] - a2) ** 2 / (2 * down2 ** 2))
+
+                # noise
+                noise_ampl = np.random.uniform(low=0.05, high=0.25)
+                ROI['intensity'] += noise_ampl * np.random.randn(self.length) / 2
+                ROI['intensity'] += np.abs(np.min(ROI['intensity']))
+                ROI['intensity'] = ROI['intensity'] / np.max(ROI['intensity'])
+
+                # intersection point and begin/end points
+                ROI['intersections'] = [np.argmin(ROI['intensity'][a1_point:a2_point]) + a1_point]
+                begin1 = int(a1 - 3*up1)
+                if int(a2 - 3*up2) > int(a1 + 3*down1):
+                    end1 = int(a1 + 3*down1)
+                    begin2 = int(a2 - 3*up2)
+                    ROI['intersections'] = [(begin2 - end1) // 2 + end1]
+                else:
+                    ROI['intersections'] = [np.argmin(ROI['intensity'][a1_point:a2_point]) + a1_point]
+                    end1 = ROI['intersections'][0]
+                    begin2 = ROI['intersections'][0]
+                end2 = int(a2 + 3*down2)
+                ROI['begins'] = [begin1, begin2]
+                ROI['ends'] = [end1, end2]
+                self._postprocessing(ROI, full=False)
+            else:
+                peaks = [self.peak_gen()]
+                current_length = len(peaks[-1])
+                gen = np.random.choice([True, False], p=[gen_p, 1 - gen_p])
+                while gen and current_length < self.length:
+                    peaks.append(self.peak_gen())
+                    current_length += len(peaks[-1])
+                    gen = np.random.choice([True, False], p=[gen_p, 1 - gen_p])
+
+                # if length is too big
+                if current_length > self.length:
+                    current_length -= len(peaks[-1])
+                    peaks.pop()
+
+                # stitching
+                self._stitching(ROI, peaks)
+                self._postprocessing(ROI)
+        else:  # 2 stands for 'hard to say'
+            assert label == 2, 'label={}, but there is only 3 classes'.format(label)
+            points = np.random.randint(low=self.length // 16, high=self.length // 8)
+            shape = np.random.choice(['linear', 'flattened gauss'])
+            if shape == 'linear':
+                direction = np.random.choice(['growth', 'decline'])
+                if direction == 'growth':
+                    linear = interp1d([3, points - 3], [0, 1])
+                else:
+                    linear = interp1d([3, points - 3], [1, 0])
+                ROI['intensity'] = np.zeros(points)
+                ROI['intensity'][3:points - 3] = linear(np.arange(3, points - 3))
+
+                ROI['intensity'][3:-3] += 0.25 * np.random.randn(points - 6)
+                ROI['intensity'][ROI['intensity'] < 0] = 0
+            elif shape == 'flattened gauss':
+                sigma = (points - 6) / 6
+                a = points // 2
+
+                # create gauss
+                x = np.arange(points)
+                ROI['intensity'] = np.exp(-(x - a) ** 2 / (2 * sigma ** 2))
+
+                begin = a - np.random.randint(low=int(2 * sigma), high=int(2.5 * sigma) + 1)
+                end = a + np.random.randint(low=int(2 * sigma), high=int(2.5 * sigma) + 1)
+
+                linear = interp1d([begin, end], [ROI['intensity'][begin], ROI['intensity'][end]])
+                ROI['intensity'][begin:end] = linear(np.arange(begin, end))
+
+                ROI['intensity'] /= np.max(ROI['intensity'])
+                success = False
+                while not success:
+                    noise = np.random.randn(points - 6)
+                    # check high noise in the peak domain
+                    if np.any(noise[a - int(2*sigma) - 2: a + int(2*sigma) - 3] < -2):
+                        success = True
+                ROI['intensity'][3:-3] += 0.25 * noise
+                ROI['intensity'][ROI['intensity'] < 0] = 0
+
+            ROI['intensity'] /= np.max(ROI['intensity'])
+            self._postprocessing(ROI, full=False)
+
+        del ROI['intersections']
+        ROI['borders'] = []
+        for b, e in zip(ROI['begins'], ROI['ends']):
+            ROI['borders'].append([b, e])
+        del ROI['begins']
+        del ROI['ends']
+        ROI['description'] = "Generated data"
+        ROI["peaks' labels"] = []
+        for i in range(len(ROI['borders'])):
+            ROI["peaks' labels"].append(0)
+        return ROI
+
+    def _stitching(self, ROI, peaks):
+        '''
+        Stitches peaks into one ROI
+        '''
+        ROI['number of peaks'] = len(peaks)
+        ROI['intensity'].extend(peaks[0])
+        ROI['begins'].append(0)
+        vertices = [np.argmax(peaks[0])]
+        for m, peak in enumerate(peaks[1:]):
+            tail_length = len(ROI['intensity']) - vertices[-1]
+            shift = np.random.randint(
+                low=int(2 / 3 * tail_length),
+                high=int(4 / 3 * tail_length)
+            )
+            alpha = np.random.uniform(low=0.5, high=2)
+            if shift >= tail_length:
+                ROI['ends'].append(vertices[-1] + tail_length - 1)
+                ROI['intersections'].append(int(ROI['ends'][-1] + (shift - tail_length) // 2))
+                ROI['intensity'].extend([ROI['intensity'][-1]] * (shift - tail_length))
+                ROI['begins'].append(len(ROI['intensity']))
+                i_shift = alpha * peak[0] - ROI['intensity'][-1]
+                for i in peak:
+                    ROI['intensity'].append(alpha * i - i_shift)
+            else:
+                for n, i in enumerate(peak):
+                    if n < tail_length - shift:
+                        ROI['intensity'][vertices[-1] + shift + n] += alpha * i
+                    else:
+                        ROI['intensity'].append(alpha * i)
+                ROI['intersections'].append(np.argmin(ROI['intensity'][vertices[-1]:vertices[-1] + tail_length]) +
+                                            vertices[-1])
+                ROI['ends'].append(ROI['intersections'][-1])
+                ROI['begins'].append(ROI['intersections'][-1])
+            vertices.append(np.argmax(ROI['intensity'][(vertices[-1] + shift):]) + vertices[-1] + shift)
+        ROI['ends'].append(len(ROI['intensity']) - 1)
+
+    def _postprocessing(self, ROI, full=True):
+        '''
+        noise generation, random shifting, normalization, peak suppression
+        '''
+        if full:
+            if ROI['label'] == 0:
+                noise_ampl = 0.25
+                ROI['intensity'] = np.array(ROI['intensity'])
+            elif ROI['label'] == 1:
+                # random peak suppression
+                if ROI['number of peaks'] > 1:
+                    for n in range(ROI['number of peaks']):
+                        to_do = False
+                        if n == 0 and ROI['ends'][n] + 5 < ROI['begins'][n + 1]:  # first peak
+                            to_do = np.random.choice([True, False], p=[0.7, 0.3])
+                        elif n == ROI['number of peaks'] - 1 and ROI['ends'][n - 1] + 5 < ROI['begins'][n]:  # last peak
+                            to_do = np.random.choice([True, False], p=[0.7, 0.3])
+                        elif ROI['ends'][n - 1] + 5 < ROI['begins'][n] and ROI['ends'][n] + 5 < ROI['begins'][n + 1]:
+                            to_do = np.random.choice([True, False], p=[0.7, 0.3])
+
+                        if to_do:
+                            suppress = np.random.choice(np.logspace(-2, 0, 3))
+                            ROI['intensity'][ROI['begins'][n]:ROI['ends'][n] + 1] /= suppress
+
+                min_alpha = 1
+                for n in range(ROI['number of peaks']):
+                    alpha = np.max(ROI['intensity'][ROI['begins'][n]:ROI['ends'][n] + 1])
+
+                    min_alpha = min((alpha, min_alpha))
+                noise_ampl = 0.1 * min_alpha
+
+                # random shifting
+                extra_points = np.random.randint(low=int(0.1 * len(ROI['intensity'])),
+                                                 high=int(0.5 * len(ROI['intensity'])))
+                on_the_edge = np.random.choice([True, False], p=[0.6, 0.4])  # peak begins fastly
+                if on_the_edge:
+                    shift = 0
+                else:
+                    shift = np.random.randint(low=0, high=extra_points)
+                for n in range(ROI['number of peaks']):
+                    ROI['begins'][n] += shift
+                    ROI['ends'][n] += shift
+                    if n + 1 < ROI['number of peaks']:
+                        ROI['intersections'][n] += shift
+                tmp_signal = np.zeros(len(ROI['intensity']) + extra_points)
+                tmp_signal[shift:len(ROI['intensity']) + shift] = ROI['intensity']
+                ROI['intensity'] = tmp_signal
+
+            # noise generation and normalization
+            ROI['intensity'] += noise_ampl * np.random.randn(len(ROI['intensity']))
+            ROI['intensity'] /= np.max(ROI['intensity'])
+            ROI['intensity'] = np.abs(ROI['intensity'])
+
+
+
 def get_mask(ROI):
     mask = np.zeros_like(ROI['intensity'])
     if ROI['number of peaks'] > 1:

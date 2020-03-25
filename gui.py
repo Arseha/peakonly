@@ -8,7 +8,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from utils.roi import get_closest
 from gui_utils.auxilary_utils import FileListWidget
-from gui_utils.mining import AnnotationParameterWindow
+from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -64,18 +64,15 @@ class MainWindow(QtWidgets.QMainWindow):
         data_processing = QtWidgets.QAction('Processing', self)
 
         data_mining = QtWidgets.QMenu('Mining', self)
-        data_mining_manual = QtWidgets.QAction('Manual annotation', self)
-        data_mining_manual.triggered.connect(partial(self.create_dataset, mode='manual'))
-        data_mining.addAction(data_mining_manual)
-        data_mining_semiautomatic = QtWidgets.QAction('Semi-automatic annotation', self)
-        data_mining_semiautomatic.triggered.connect(partial(self.create_dataset, mode='semi-automatic'))
-        data_mining.addAction(data_mining_semiautomatic)
-        data_mining_novel_annotation = QtWidgets.QAction('Novel annotation', self)
-        data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='novel'))
+        data_mining_novel_annotation = QtWidgets.QAction('Manual annotation', self)
+        data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='manual'))
         data_mining.addAction(data_mining_novel_annotation)
-        data_mining_novel_skip_noise = QtWidgets.QAction('Skip noise', self)
+        data_mining_novel_skip_noise = QtWidgets.QAction('Skip noise (in developing)', self)
         data_mining_novel_skip_noise.triggered.connect(partial(self.create_dataset, mode='skip noise'))
         data_mining.addAction(data_mining_novel_skip_noise)
+        data_mining_novel_reannotation = QtWidgets.QAction('Reannotation', self)
+        data_mining_novel_reannotation.triggered.connect(partial(self.create_dataset, mode='reannotation'))
+        data_mining.addAction(data_mining_novel_reannotation)
 
         data.addAction(data_processing)
         data.addMenu(data_mining)
@@ -110,10 +107,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.list_of_files.addFile(name)
 
     def create_dataset(self, mode='manual'):
-        files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
-                 for i in range(self.list_of_files.count())]
-        subwindow = AnnotationParameterWindow(files, mode, self)
-        subwindow.show()
+        if mode != 'reannotation':
+            files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
+                     for i in range(self.list_of_files.count())]
+            subwindow = AnnotationParameterWindow(files, mode, self)
+            subwindow.show()
+        else:
+            subwindow = ReAnnotationParameterWindow(mode, self)
+            subwindow.show()
 
     def plot(self, x, y):
         self.figure.clear()
