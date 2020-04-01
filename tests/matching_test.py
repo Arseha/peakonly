@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 from collections import defaultdict
 
-from utils.matching import stitch_component, align_component
-from utils.roi import ROI
+from processing_utils.matching import stitch_component, align_component
+from processing_utils.roi import ROI
 
 
 class MyTestCase(unittest.TestCase):

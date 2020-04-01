@@ -2,9 +2,9 @@ import os
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from utils.models import Integrator
-from utils.dataset import ROIDataset, get_mask, Reflection
-from utils.training import train_model, iou, compute_iou, TwoChannelLoss
+from models.models import Integrator
+from training_utils.dataset import ROIDataset, get_mask, Reflection
+from training_utils.training import train_model, iou, compute_iou, TwoChannelLoss
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

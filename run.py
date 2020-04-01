@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
 from tqdm import tqdm
-from utils.roi import get_ROIs
-from utils.models import Classifier, Integrator
+from processing_utils.roi import get_ROIs
+from models.models import Classifier, Integrator
 
 
 def preprocess(signal, points=256):

@@ -2,12 +2,12 @@ import sys
 import os
 import torch
 from tqdm import tqdm
-from utils.roi import get_ROIs
-from utils.models import Classifier, Integrator
-from utils.matching import construct_mzregions, rt_grouping, align_component
-from utils.run_utils import find_mzML, classifier_prediction, border_prediction,\
+from processing_utils.roi import get_ROIs
+from models.models import Classifier, Integrator
+from processing_utils.matching import construct_mzregions, rt_grouping, align_component
+from processing_utils.run_utils import find_mzML, classifier_prediction, border_prediction,\
     correct_classification, border_correction, build_features, feature_collapsing
-from utils.postprocess import ResultTable
+from processing_utils.postprocess import ResultTable
 
 if __name__ == '__main__':
     if len(sys.argv) != 5:

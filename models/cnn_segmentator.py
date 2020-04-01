@@ -2,57 +2,6 @@ import torch
 import torch.nn as nn
 
 
-class Block(nn.Module):
-    def __init__(self, in_channels, out_channels, bn=True, padding=2, dilation=1, stride=1):
-        super().__init__()
-
-        if bn:
-            self.basic_block = nn.Sequential(
-                nn.Conv1d(in_channels, out_channels, 5, padding=padding, dilation=dilation, stride=stride),
-                nn.BatchNorm1d(out_channels),
-                nn.ReLU()
-            )
-        else:
-            self.basic_block = nn.Sequential(
-                nn.Conv1d(in_channels, out_channels, 5, padding=padding, dilation=dilation, stride=stride),
-                nn.ReLU()
-            )
-
-    def forward(self, x):
-        return self.basic_block(x)
-
-
-class Classifier(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.convBlock = nn.Sequential(
-            Block(1, 8, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(8, 16, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(16, 32, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(32, 64, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(64, 64, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(64, 128, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(128, 256, False),
-            nn.MaxPool1d(kernel_size=2),
-            Block(256, 512, False)
-        )
-        self.classification = nn.Sequential(
-            nn.Dropout(p=0.5),
-            nn.Linear(512, 3)
-        )
-
-    def forward(self, x):
-        x = self.convBlock(x)
-        x, _ = torch.max(x, dim=2)
-        return self.classification(x)
-
-
 def preprocessing(batch):
     batch_size, _, n_peaks = batch.shape
     processed_batch = batch.clone().view(batch_size, n_peaks)
@@ -66,8 +15,22 @@ def preprocessing(batch):
     return processed_batch.view(batch_size, 1, n_peaks)
 
 
-class Integrator(nn.Module):
-    def __init__(self, length=256):
+class Block(nn.Module):
+    def __init__(self, in_channels, out_channels, padding=2, dilation=1, stride=1):
+        super().__init__()
+
+        self.basic_block = nn.Sequential(
+            nn.Conv1d(in_channels, out_channels, 5, padding=padding, dilation=dilation, stride=stride),
+            nn.BatchNorm1d(out_channels),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.basic_block(x)
+
+
+class Segmentator(nn.Module):
+    def __init__(self):
         super().__init__()
 
         self.starter = nn.Sequential(
@@ -130,5 +93,4 @@ class Integrator(nn.Module):
         x = self.pass_up1(x)
         x = torch.cat((x, starter), dim=1)
         x = self.finisher(x)
-        return x
-
+        return None, x

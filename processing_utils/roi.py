@@ -173,6 +173,10 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
     # add final rois
     for mz, roi in process_ROIs.items():
         if roi.points >= required_points:
+            for n in range(dropped_points - (number - 1 - roi.scan[1])):
+                # insert 'zero' in the end
+                roi.mz.append(roi.mzmean)
+                roi.i.append(0)
             ROIs.append(ROI(
                         roi.scan,
                         roi.rt,
@@ -188,4 +192,5 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
             roi.mz.insert(0, roi.mzmean)
         # change scan numbers (necessary for future matching)
         roi.scan = (roi.scan[0] - dropped_points, roi.scan[1] + dropped_points)
+        assert roi.scan[1] - roi.scan[0] == len(roi.i) - 1
     return ROIs

@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from utils.models import Classifier
-from utils.dataset import ROIDataset, get_label
-from utils.training import train_model, accuracy, compute_accuracy
+from models.models import Classifier
+from training_utils.dataset import ROIDataset, get_label
+from training_utils.training import train_model, accuracy, compute_accuracy
 
 
 if __name__ == '__main__':

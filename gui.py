@@ -6,16 +6,24 @@ from functools import partial
 from PyQt5 import QtWidgets, QtGui
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from utils.roi import get_closest
-from gui_utils.auxilary_utils import FileListWidget
+from processing_utils.roi import get_closest
+from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
+from gui_utils.processing import ProcessingParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    # Initialization
     def __init__(self):
         super().__init__()
+        # create menu
         self.create_menu()
+
+        # create list of opened *.mzML file
         self.list_of_files = self.create_list_of_files()
+
+        # create list of founded features
+        self.list_of_features = self.create_list_of_features()
 
         # Main canvas and toolbar
         self.figure = plt.figure()
@@ -30,8 +38,9 @@ class MainWindow(QtWidgets.QMainWindow):
         canvas_layout.addWidget(self.canvas)
 
         main_layout = QtWidgets.QHBoxLayout()
-        main_layout.addWidget(self.list_of_files, 20)
-        main_layout.addLayout(canvas_layout, 80)
+        main_layout.addWidget(self.list_of_files, 15)
+        main_layout.addLayout(canvas_layout, 70)
+        main_layout.addWidget(self.list_of_features, 15)
         widget = QtWidgets.QWidget()
         widget.setLayout(main_layout)
 
@@ -41,9 +50,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setGeometry(300, 300, 900, 600)
         self.setWindowTitle('peakonly')
         self.show()
-
-    def file_click(self, item):
-        FileContextMenu(self, item)
 
     def create_menu(self):
         menu = self.menuBar()
@@ -61,20 +67,23 @@ class MainWindow(QtWidgets.QMainWindow):
         # data submenu
         data = menu.addMenu('Data')
 
-        data_processing = QtWidgets.QAction('Processing', self)
+        data_processing = QtWidgets.QMenu('Processing', self)
+        data_processing_recurrentCNN = QtWidgets.QAction("'All-in-one'", self)
+        data_processing_recurrentCNN.triggered.connect(partial(self.data_processing, 'all in one'))
+        data_processing.addAction(data_processing_recurrentCNN)
+        data_processing_subsequentCNNs = QtWidgets.QAction('Sequential', self)
+        data_processing_subsequentCNNs.triggered.connect(partial(self.data_processing, 'sequential'))
+        data_processing.addAction(data_processing_subsequentCNNs)
 
         data_mining = QtWidgets.QMenu('Mining', self)
         data_mining_novel_annotation = QtWidgets.QAction('Manual annotation', self)
         data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='manual'))
         data_mining.addAction(data_mining_novel_annotation)
-        data_mining_novel_skip_noise = QtWidgets.QAction('Skip noise (in developing)', self)
-        data_mining_novel_skip_noise.triggered.connect(partial(self.create_dataset, mode='skip noise'))
-        data_mining.addAction(data_mining_novel_skip_noise)
         data_mining_novel_reannotation = QtWidgets.QAction('Reannotation', self)
         data_mining_novel_reannotation.triggered.connect(partial(self.create_dataset, mode='reannotation'))
         data_mining.addAction(data_mining_novel_reannotation)
 
-        data.addAction(data_processing)
+        data.addMenu(data_processing)
         data.addMenu(data_mining)
 
         # visualization submenu
@@ -93,6 +102,10 @@ class MainWindow(QtWidgets.QMainWindow):
         visual.addAction(visual_eic)
         visual.addAction(visual_clear)
 
+    def open_clear_window(self):
+        subwindow = ClearMainCanvasWindow(self)
+        subwindow.show()
+
     def create_list_of_files(self):
         # List of opened files
         list_of_files = FileListWidget()
@@ -100,12 +113,34 @@ class MainWindow(QtWidgets.QMainWindow):
         list_of_files.itemDoubleClicked.connect(self.file_click)
         return list_of_files
 
+    def create_list_of_features(self):
+        list_of_features = FeatureListWidget()
+        list_of_features.itemDoubleClicked.connect(self.feature_click)
+        return list_of_features
+
+    # Auxiliary methods
+    def file_click(self, item):
+        FileContextMenu(self, item)
+
+    def feature_click(self, item):
+        feature = self.list_of_features.getFeauture(item)
+        self.plot_feature(feature)
+
     def open_files(self):
         filter = 'mzML (*.mzML)'
         filenames = QtWidgets.QFileDialog.getOpenFileNames(None, None, None, filter)[0]
         for name in filenames:
             self.list_of_files.addFile(name)
 
+    def set_features(self, features):
+        for feature in features:
+            self.list_of_features.addFeature(feature)
+
+    def get_EIC_parameters(self):
+        subwindow = EICParameterWindow(self)
+        subwindow.show()
+
+    # Main functionality
     def create_dataset(self, mode='manual'):
         if mode != 'reannotation':
             files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
@@ -116,6 +151,13 @@ class MainWindow(QtWidgets.QMainWindow):
             subwindow = ReAnnotationParameterWindow(mode, self)
             subwindow.show()
 
+    def data_processing(self, mode):
+        files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
+                 for i in range(self.list_of_files.count())]
+        subwindow = ProcessingParameterWindow(files, mode, self)
+        subwindow.show()
+
+    # Visualization
     def plot(self, x, y):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
@@ -171,13 +213,11 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.ax.legend(loc='best')
         self.canvas.draw()  # refresh canvas
 
-    def get_EIC_parameters(self):
-        subwindow = EICParameterWindow(self)
-        subwindow.show()
-
-    def open_clear_window(self):
-        subwindow = ClearMainCanvasWindow(self)
-        subwindow.show()
+    def plot_feature(self, feature):
+        self.figure.clear()
+        self.ax = self.figure.add_subplot(111)
+        feature.plot(self.ax, shifted=True)
+        self.canvas.draw()  # refresh canvas
 
 
 class FileContextMenu(QtWidgets.QMenu):

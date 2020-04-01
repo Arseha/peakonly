@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.sparse.csgraph import connected_components
-from utils.roi import ROI
+from processing_utils.roi import ROI
 
 
 class mzRegion:
@@ -238,7 +238,6 @@ def stitch_component(component):
     :return: new_component with stitched ROIs
     """
     new_component = defaultdict(list)
-    #
     for file in component:
         begin_scan, end_scan = component[file][0].scan
         begin_rt, end_rt = component[file][0].rt

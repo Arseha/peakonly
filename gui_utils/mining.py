@@ -1,14 +1,13 @@
 import os
 import json
-import torch
+# import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from PyQt5 import QtWidgets
-from utils.roi import get_ROIs, construct_ROI
-from utils.models import Classifier, Integrator
-from utils.run_utils import classifier_prediction, border_prediction
+from processing_utils.roi import get_ROIs, construct_ROI
+# from processing_utils.run_utils import classifier_prediction
 from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget
 
 
@@ -52,7 +51,7 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
 
         # file and folder selection
         choose_file_label = QtWidgets.QLabel()
-        choose_file_label.setText('Choose file:')
+        choose_file_label.setText('Choose a file to annotate:')
         self.list_of_files = FileListWidget()
         for file in files:
             self.list_of_files.addFile(file)
@@ -200,14 +199,14 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         #     # variables where save CNNs predictions
         #     self.label = 0
         #     self.borders = []
-        if self.mode == 'skip noise':
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            self.classify = Classifier()
-            self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
-            self.classify.to(self.device)
-            self.classify.eval()
-            # variables where save CNN predictions
-            self.label = 0
+        # if self.mode == 'skip noise':
+        #     self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        #     self.classify = Classifier()
+        #     self.classify.load_state_dict(torch.load('data/Classifier', map_location=self.device))
+        #     self.classify.to(self.device)
+        #     self.classify.eval()
+        #     # variables where save CNN predictions
+        #     self.label = 0
         # shuffle ROIs
         self.ROIs = ROIs
         np.random.seed(1313)
@@ -233,9 +232,9 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.plot_current()  # initial plot
 
     def _init_ui(self):
-        '''
+        """
         Initialize all buttons and layouts.
-        '''
+        """
         # canvas layout
         toolbar = NavigationToolbar(self.canvas, self)
         canvas_layout = QtWidgets.QVBoxLayout()
@@ -291,12 +290,12 @@ class AnnotationMainWindow(QtWidgets.QDialog):
                 self.current_flag = True
                 self.current_description = self.description
                 self.plotted_roi = self.ROIs[self.file_suffix]
-                if self.mode == 'skip noise':
-                    self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
-                    while self.label == 0:
-                        self.file_suffix += 1
-                        self.plotted_roi = self.ROIs[self.file_suffix]
-                        self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+                # if self.mode == 'skip noise':
+                #     self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
+                #     while self.label == 0:
+                #         self.file_suffix += 1
+                #         self.plotted_roi = self.ROIs[self.file_suffix]
+                #         self.label = classifier_prediction(self.plotted_roi, self.classify, self.device)
 
                 filename = f'{self.file_prefix}_{self.file_suffix}.json'
                 self.plotted_path = os.path.join(self.folder, filename)
