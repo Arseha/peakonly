@@ -23,7 +23,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
     Attributes
     ----------
     mode : str
-        A one of two 'recurrent CNN' of 'two subsequent CNNs'
+        A one of two 'all in one' of 'sequential'
     parent : MainWindow(QtWidgets.QMainWindow)
         -
     list_of_files : FileListWidget

@@ -120,7 +120,11 @@ def train_model(model, loader, val_loader,
                 label_criterion=None,
                 integration_criterion=None,
                 intersection_criterion=None,
-                accumulation=1):
+                accumulation=1,
+                loss_ax=None,
+                classification_score_ax=None,
+                segmentation_score_ax=None,
+                figure=None, canvas=None):
     loss_history = []
     train_classification_score_history = []
     train_segmentation_score_history = []
@@ -190,12 +194,12 @@ def train_model(model, loader, val_loader,
             if best_score < val_classification_score_history[-1]:
                 best_score = val_classification_score_history[-1]
                 torch.save(model.state_dict(),
-                           os.path.join('data/weights', model.__class__.__name__))  # save best model
+                           os.path.join('data/tmp_weights', model.__class__.__name__))  # save best model
         elif val_segmentation_score_history[-1] > 0:
             if best_score < val_segmentation_score_history[-1]:
                 best_score = val_segmentation_score_history[-1]
                 torch.save(model.state_dict(),
-                           os.path.join('data/weights', model.__class__.__name__))  # save best model
+                           os.path.join('data/tmp_weights', model.__class__.__name__))  # save best model
 
         if scheduler:
             scheduler.step()
@@ -213,6 +217,27 @@ def train_model(model, loader, val_loader,
                     train_segmentation_score_history[-1],
                     val_segmentation_score_history[-1]
                 ))
+
+        # visualization
+        if loss_ax is not None:
+            loss_ax.plot(loss_history)
+            loss_ax.set_title('Loss function')
+        if classification_score_ax is not None:
+            classification_score_ax.clear()
+            classification_score_ax.plot(train_classification_score_history, label='train')
+            classification_score_ax.plot(val_classification_score_history, label='validation')
+            classification_score_ax.legend(loc='best')
+            classification_score_ax.set_title('Classification score')
+        if segmentation_score_ax is not None:
+            segmentation_score_ax.clear()
+            segmentation_score_ax.plot(train_segmentation_score_history, label='train')
+            segmentation_score_ax.plot(val_segmentation_score_history, label='validation')
+            segmentation_score_ax.legend(loc='best')
+            segmentation_score_ax.set_title('Segmentation score')
+        if figure is not None:
+            figure.tight_layout()
+        if canvas is not None:
+            canvas.draw()
     return (loss_history,
             train_classification_score_history,
             train_segmentation_score_history,

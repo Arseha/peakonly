@@ -46,14 +46,15 @@ class ROIDataset(Dataset):
         self.length = length
         self.return_roi_code = return_roi_code
         for file in os.listdir(path):
-            with open(os.path.join(path, file)) as json_file:
-                roi = json.load(json_file)
-                roi['intensity'] = np.array(roi['intensity'])
-                roi['borders'] = np.array(roi['borders'])
-                if self.interpolate:
-                    roi = self._interpolate(roi)
+            if file[0] != '.':
+                with open(os.path.join(path, file)) as json_file:
+                    roi = json.load(json_file)
+                    roi['intensity'] = np.array(roi['intensity'])
+                    roi['borders'] = np.array(roi['borders'])
+                    if self.interpolate:
+                        roi = self._interpolate(roi)
 
-                self.data[roi['label']].append(roi)
+                    self.data[roi['label']].append(roi)
         self.augmentations = [] if augmentations is None else augmentations
 
     def __len__(self):

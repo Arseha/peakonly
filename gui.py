@@ -10,6 +10,7 @@ from processing_utils.roi import get_closest
 from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
 from gui_utils.processing import ProcessingParameterWindow
+from gui_utils.training import TrainingParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -68,12 +69,12 @@ class MainWindow(QtWidgets.QMainWindow):
         data = menu.addMenu('Data')
 
         data_processing = QtWidgets.QMenu('Processing', self)
-        data_processing_recurrentCNN = QtWidgets.QAction("'All-in-one'", self)
-        data_processing_recurrentCNN.triggered.connect(partial(self.data_processing, 'all in one'))
-        data_processing.addAction(data_processing_recurrentCNN)
-        data_processing_subsequentCNNs = QtWidgets.QAction('Sequential', self)
-        data_processing_subsequentCNNs.triggered.connect(partial(self.data_processing, 'sequential'))
-        data_processing.addAction(data_processing_subsequentCNNs)
+        data_processing_all = QtWidgets.QAction("'All-in-one'", self)
+        data_processing_all.triggered.connect(partial(self.data_processing, 'all in one'))
+        data_processing.addAction(data_processing_all)
+        data_processing_sequential = QtWidgets.QAction('Sequential', self)
+        data_processing_sequential.triggered.connect(partial(self.data_processing, 'sequential'))
+        data_processing.addAction(data_processing_sequential)
 
         data_mining = QtWidgets.QMenu('Mining', self)
         data_mining_novel_annotation = QtWidgets.QAction('Manual annotation', self)
@@ -85,6 +86,38 @@ class MainWindow(QtWidgets.QMainWindow):
 
         data.addMenu(data_processing)
         data.addMenu(data_mining)
+
+        # Processing model submenu
+        model = menu.addMenu('Model')
+
+        model_training = QtWidgets.QMenu('Training', self)
+        model_training_all = QtWidgets.QAction("'All-in-one'", self)
+        model_training_all.triggered.connect(partial(self.model_training, 'all in one'))
+        model_training.addAction(model_training_all)
+        model_training_sequential = QtWidgets.QAction('Sequential', self)
+        model_training_sequential.triggered.connect(partial(self.model_training, 'sequential'))
+        model_training.addAction(model_training_sequential)
+
+        model_fine_tuning = QtWidgets.QMenu('Fine-tuning', self)
+        model_fine_tuning_all = QtWidgets.QAction("'All-in-one'", self)
+        model_fine_tuning_all.triggered.connect(partial(self.model_fine_tuning, 'all in one'))
+        model_fine_tuning.addAction(model_training_all)
+        model_fine_tuning_sequential = QtWidgets.QAction('Sequential', self)
+        model_fine_tuning_sequential.triggered.connect(partial(self.model_fine_tuning, 'sequential'))
+        model_fine_tuning.addAction(model_fine_tuning_sequential)
+
+        model_evaluation = QtWidgets.QMenu('Evaluation', self)
+        model_evaluation_all = QtWidgets.QAction("'All-in-one'", self)
+        model_evaluation_all.triggered.connect(partial(self.model_evaluation, 'all in one'))
+        model_evaluation.addAction(model_training_all)
+        model_evaluation_sequential = QtWidgets.QAction('Sequential', self)
+        model_evaluation_sequential.triggered.connect(partial(self.model_evaluation, 'sequential'))
+        model_evaluation.addAction(model_evaluation_sequential)
+
+        model.addMenu(model_training)
+        model.addMenu(model_fine_tuning)
+        model.addMenu(model_evaluation)
+
 
         # visualization submenu
         visual = menu.addMenu('Visualization')
@@ -157,12 +190,23 @@ class MainWindow(QtWidgets.QMainWindow):
         subwindow = ProcessingParameterWindow(files, mode, self)
         subwindow.show()
 
+    # Model functionality
+    def model_training(self, mode):
+        subwindow = TrainingParameterWindow(mode, self)
+        subwindow.show()
+
+    def model_fine_tuning(self, mode):
+        pass
+
+    def model_evaluation(self, mode):
+        pass
+
     # Visualization
     def plot(self, x, y):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
         ax.plot(x, y)
-        self.canvas.draw() # refresh canvas
+        self.canvas.draw()  # refresh canvas
 
     def plot_TIC(self):
         files = [f.text() for f in self.list_of_files.selectedItems()]
