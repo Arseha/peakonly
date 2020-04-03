@@ -11,6 +11,7 @@ from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
 from gui_utils.processing import ProcessingParameterWindow
 from gui_utils.training import TrainingParameterWindow
+from gui_utils.evaluation import EvaluationParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -29,7 +30,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # Main canvas and toolbar
         self.figure = plt.figure()
         self.ax = self.figure.add_subplot(111)  # plot here
-        self.label2line = dict()
+        self.label2line = dict()  # a label (aka line name) to plotted line
         self.canvas = FigureCanvas(self.figure)
         self.toolbar = NavigationToolbar(self.canvas, self)
 
@@ -101,7 +102,7 @@ class MainWindow(QtWidgets.QMainWindow):
         model_fine_tuning = QtWidgets.QMenu('Fine-tuning', self)
         model_fine_tuning_all = QtWidgets.QAction("'All-in-one'", self)
         model_fine_tuning_all.triggered.connect(partial(self.model_fine_tuning, 'all in one'))
-        model_fine_tuning.addAction(model_training_all)
+        model_fine_tuning.addAction(model_fine_tuning_all)
         model_fine_tuning_sequential = QtWidgets.QAction('Sequential', self)
         model_fine_tuning_sequential.triggered.connect(partial(self.model_fine_tuning, 'sequential'))
         model_fine_tuning.addAction(model_fine_tuning_sequential)
@@ -109,7 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         model_evaluation = QtWidgets.QMenu('Evaluation', self)
         model_evaluation_all = QtWidgets.QAction("'All-in-one'", self)
         model_evaluation_all.triggered.connect(partial(self.model_evaluation, 'all in one'))
-        model_evaluation.addAction(model_training_all)
+        model_evaluation.addAction(model_evaluation_all)
         model_evaluation_sequential = QtWidgets.QAction('Sequential', self)
         model_evaluation_sequential.triggered.connect(partial(self.model_evaluation, 'sequential'))
         model_evaluation.addAction(model_evaluation_sequential)
@@ -199,7 +200,8 @@ class MainWindow(QtWidgets.QMainWindow):
         pass
 
     def model_evaluation(self, mode):
-        pass
+        subwindow = EvaluationParameterWindow(mode, self)
+        subwindow.show()
 
     # Visualization
     def plot(self, x, y):

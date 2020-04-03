@@ -2,7 +2,7 @@ import os
 import torch
 from PyQt5 import QtWidgets
 from gui_utils.auxilary_utils import FileListWidget, GetFileWidget
-from processing_utils.runner import Runner
+from processing_utils.runner import FilesRunner
 from models.rcnn import RecurrentCNN
 from models.cnn_classifier import Classifier
 from models.cnn_segmentator import Segmentator
@@ -168,7 +168,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         if not path2mzml:
             raise ValueError
 
-        runner = Runner(self.mode, models, delta_mz,
+        runner = FilesRunner(self.mode, models, delta_mz,
                         required_points, dropped_points,
                         minimum_peak_points, device)
         features = runner(path2mzml)

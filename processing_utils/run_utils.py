@@ -402,7 +402,7 @@ class Feature:
         self.shifts.extend(feature.shifts)
         self.intensities.extend(feature.intensities)
 
-    def plot(self, ax, shifted=True):
+    def plot(self, ax, shifted=True, show_legend=False):
         """
         Visualize Feature object
         """
@@ -429,7 +429,9 @@ class Feature:
             label = label2class[name2label[sample]]
             c = [label / m, 0.0, (m - label) / m]
             ax.plot(x, y, color=c)
-            ax.fill_between(x[border[0]:border[1]], y[border[0]:border[1]], color=c, alpha=0.5)
+            ax.fill_between(x[border[0]:border[1]], y[border[0]:border[1]], color=c, alpha=0.5, label=sample)
+        if show_legend:
+            ax.legend(loc='best')
         ax.set_title('mz = {:.4f}, rt = {:.2f} - {:.2f}'.format(self.mz, self.rtmin, self.rtmax))
 
 

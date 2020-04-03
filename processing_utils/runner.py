@@ -6,9 +6,94 @@ from processing_utils.run_utils import preprocess, get_borders, Feature, \
     border_correction, build_features, feature_collapsing
 
 
-class Runner:
+class BasicRunner:
     """
-    A runner to process ROIs
+    A runner to process single roi
+
+    Parameters
+    ----------
+    mode : str
+        A one of two 'all in one' of 'sequential'
+    models : list
+        a list of models
+    peak_minimum_points : int
+        -
+
+    Attributes
+    ----------
+    mode : str
+        A one of two 'all in one' of 'sequential'
+    model : nn.Module
+        an ANN model if mode is 'all in one' (optional)
+    classifier : nn.Module
+        an ANN model for classification (optional)
+    segmentator : nn.Module
+        an ANN model for segmentation (optional)
+    peak_minimum_points : int
+        minimum peak length in points
+
+    """
+    def __init__(self, mode, models, peak_minimum_points, device):
+        self.mode = mode
+        if self.mode == 'all in one':
+            self.model = models[0]
+        elif self.mode == 'sequential':
+            self.classifier, self.segmentator = models
+        else:
+            assert False, mode
+        self.peak_minimum_points = peak_minimum_points
+        self.device = device
+
+    def __call__(self, roi, sample_name):
+        """
+        Processing single roi
+
+        Parameters
+        ----------
+        roi : ROI
+            -
+        sample_name : str
+            Arbitrary sample name
+        Returns
+        -------
+        feature : list
+            a list of  'Feature' objects
+        """
+        if self.mode == 'all in one':
+            signal = preprocess(roi.i, self.device)
+            classifier_output, segmentator_output = self.model(signal)
+        elif self.mode == 'sequential':
+            signal = preprocess(roi.i, self.device, interpolate=True, length=256)
+            classifier_output, _ = self.classifier(signal)
+            # to do: second step should be only for peaks
+            _, segmentator_output = self.segmentator(signal)
+        else:
+            assert False, self.mode
+        classifier_output = classifier_output.data.cpu().numpy()
+        segmentator_output = segmentator_output.data.sigmoid().cpu().numpy()
+
+        # get label
+        label = np.argmax(classifier_output)
+        # get borders
+        features = []
+        if label == 1:
+            borders = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
+                                  peak_minimum_points=self.peak_minimum_points,
+                                  interpolation_factor=len(signal[0, 0]) / len(roi.i))
+            for border in borders:
+                # to do: check correctness of rt calculations
+                scan_frequency = (roi.scan[1] - roi.scan[0]) / (roi.rt[1] - roi.rt[0])
+                rtmin = roi.rt[0] + border[0] / scan_frequency
+                rtmax = roi.rt[0] + border[1] / scan_frequency
+                feature = Feature([sample_name], [roi], [border], [0], [np.sum(roi.i[border[0]:border[1]])],
+                                  roi.mzmean, rtmin, rtmax, 0, 0)
+                features.append(feature)
+        return features
+
+
+class FilesRunner(BasicRunner):
+    """
+    A runner to process *.mzML files
 
     Parameters
     ----------
@@ -46,18 +131,10 @@ class Runner:
     def __init__(self, mode, models, delta_mz,
                  required_points, dropped_points,
                  peak_minimum_points, device):
-        self.mode = mode
-        if self.mode == 'all in one':
-            self.model = models[0]
-        elif self.mode == 'sequential':
-            self.classifier, self.segmentator = models
-        else:
-            assert False, mode
+        super(FilesRunner, self).__init__(mode, models, peak_minimum_points, device)
         self.delta_mz = delta_mz
         self.required_points = required_points
         self.dropped_points = dropped_points
-        self.peak_minimum_points = peak_minimum_points
-        self.device = device
 
     def __call__(self, files):
         if len(files) == 1:
@@ -84,37 +161,10 @@ class Runner:
             a list of 'Feature' objects (each consist of single ROI)
         """
         rois = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points)  # get ROIs from raw spectrum
-
         features = []
         for roi in tqdm(rois):
-            if self.mode == 'all in one':
-                signal = preprocess(roi.i, self.device)
-                classifier_output, segmentator_output = self.model(signal)
-            elif self.mode == 'sequential':
-                signal = preprocess(roi.i, self.device, interpolate=True, length=256)
-                classifier_output, _ = self.classifier(signal)
-                # to do: second step should be only for peaks
-                _, segmentator_output = self.segmentator(signal)
-            else:
-                assert False, self.mode
-            classifier_output = classifier_output.data.cpu().numpy()
-            segmentator_output = segmentator_output.data.sigmoid().cpu().numpy()
-
-            # get label
-            label = np.argmax(classifier_output)
-            # get borders
-            if label == 1:
-                borders = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
-                                      peak_minimum_points=self.peak_minimum_points,
-                                      interpolation_factor=len(signal[0, 0])/len(roi.i))
-                for border in borders:
-                    # to do: check correctness of rt calculations
-                    scan_frequency = (roi.scan[1] - roi.scan[0]) / (roi.rt[1] - roi.rt[0])
-                    rtmin = roi.rt[0] + border[0] / scan_frequency
-                    rtmax = roi.rt[0] + border[1] / scan_frequency
-                    feature = Feature([file], [roi], [border], [0], [np.sum(roi.i)],
-                                      roi.mzmean, rtmin, rtmax, 0, 0)
-                    features.append(feature)
+            features_from_roi = super(FilesRunner, self).__call__(roi, file)
+            features.extend(features_from_roi)
         return features
 
     def _batch_run(self, files):

@@ -265,15 +265,16 @@ class TrainingMainWidget(QtWidgets.QWidget):
             for param_group in self.optimizer.param_groups:
                 param_group['lr'] = learning_rate
 
-            t = threading.Thread(target=train_model, args=(self.model, self.train_loader, self.val_loader,
-                                                           self.optimizer, number_of_epoch, 10,
-                                                           self.classification_metric, self.segmentation_metric,
-                                                           self.scheduler, self.label_criterion,
-                                                           self.integration_criterion, self.intersection_criterion,
-                                                           self.accumulation, self.loss_ax,
-                                                           self.classification_score_ax, self.segmentation_score_ax,
-                                                           self.figure, self.canvas))
-            t.start()
+            thread = threading.Thread(target=train_model, args=(self.model, self.train_loader, self.val_loader,
+                                                                self.optimizer, number_of_epoch, 10,
+                                                                self.classification_metric, self.segmentation_metric,
+                                                                self.scheduler, self.label_criterion,
+                                                                self.integration_criterion, self.intersection_criterion,
+                                                                self.accumulation, self.loss_ax,
+                                                                self.classification_score_ax,
+                                                                self.segmentation_score_ax,
+                                                                self.figure, self.canvas))
+            thread.start()
         except ValueError:
             pass  # to do: create error window
 
