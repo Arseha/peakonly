@@ -3,6 +3,7 @@ import json
 import torch
 import threading
 import numpy as np
+from functools import partial
 from PyQt5 import QtWidgets
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -134,6 +135,40 @@ class EvaluationParameterWindow(QtWidgets.QDialog):
 
 
 class EvaluationMainWindow(QtWidgets.QDialog):
+    """
+    Evaluation Main Window, where one can look into the model quality
+
+    Parameters
+    ----------
+    test_folder : str
+        A path to folder with test data
+    runner : BasicRunner
+        -
+    parent : MainWindow(QtWidgets.QMainWindow)
+        -
+    Attributes
+    ----------
+    test_folder : str
+        A path to folder with test data
+    runner : BasicRunner
+        -
+    parent : MainWindow(QtWidgets.QMainWindow)
+        -
+    tp_features : FeatureListWidget
+        true positives features
+    tn_features : FeatureListWidget
+        true negatives features
+    fp_features : FeatureListWidget
+        false positives features
+    fn_features : FeatureListWidget
+        false negatives features
+    figure : Figure
+        -
+    ax : Axes
+        -
+    canvas : FigureCanvasQTAgg
+        -
+    """
     def __init__(self, test_folder, runner, parent):
         self.parent = parent
         super().__init__(parent)
@@ -145,38 +180,63 @@ class EvaluationMainWindow(QtWidgets.QDialog):
 
     def _init_ui(self):
         # create lists of features
+        lists_layout = QtWidgets.QHBoxLayout()
+
         tp_layout = QtWidgets.QVBoxLayout()
         tp_label = QtWidgets.QLabel()
         tp_label.setText('True positives:')
-        self.tp_features = self.create_list_of_features()
         tp_layout.addWidget(tp_label)
+        self.tp_features = self.create_list_of_features()
         tp_layout.addWidget(self.tp_features)
+        tp_next_button = QtWidgets.QPushButton('next')
+        tp_next_button.clicked.connect(partial(self.next_feature, self.tp_features))
+        tp_layout.addWidget(tp_next_button)
+        lists_layout.addLayout(tp_layout)
 
         tn_layout = QtWidgets.QVBoxLayout()
         tn_label = QtWidgets.QLabel()
         tn_label.setText('True negatives:')
-        self.tn_features = self.create_list_of_features()
         tn_layout.addWidget(tn_label)
+        self.tn_features = self.create_list_of_features()
         tn_layout.addWidget(self.tn_features)
+        tn_next_button = QtWidgets.QPushButton('next')
+        tn_next_button.clicked.connect(partial(self.next_feature, self.tn_features))
+        tn_layout.addWidget(tn_next_button)
+        lists_layout.addLayout(tn_layout)
 
         fp_layout = QtWidgets.QVBoxLayout()
         fp_label = QtWidgets.QLabel()
         fp_label.setText('False positives:')
-        self.fp_features = self.create_list_of_features()
         fp_layout.addWidget(fp_label)
+        self.fp_features = self.create_list_of_features()
         fp_layout.addWidget(self.fp_features)
+        fp_next_button = QtWidgets.QPushButton('next')
+        fp_next_button.clicked.connect(partial(self.next_feature, self.fp_features))
+        fp_layout.addWidget(fp_next_button)
+        lists_layout.addLayout(fp_layout)
 
         fn_layout = QtWidgets.QVBoxLayout()
         fn_label = QtWidgets.QLabel()
         fn_label.setText('False negatives:')
-        self.fn_features = self.create_list_of_features()
         fn_layout.addWidget(fn_label)
+        self.fn_features = self.create_list_of_features()
         fn_layout.addWidget(self.fn_features)
+        fn_next_button = QtWidgets.QPushButton('next')
+        fn_next_button.clicked.connect(partial(self.next_feature, self.fn_features))
+        fn_layout.addWidget(fn_next_button)
+        lists_layout.addLayout(fn_layout)
+
+        # statistic button
+        right_half_layout = QtWidgets.QVBoxLayout()
+        right_half_layout.addLayout(lists_layout)
+
+        statistics_button = QtWidgets.QPushButton('get more statistics')
+        statistics_button.clicked.connect(self.get_statistics)
+        right_half_layout.addWidget(statistics_button)
 
         # Main canvas and toolbar
         self.figure = plt.figure()
         self.ax = self.figure.add_subplot(111)  # plot here
-        self.label2line = dict()  # a label (aka line name) to plotted line
         self.canvas = FigureCanvas(self.figure)
         toolbar = NavigationToolbar(self.canvas, self)
         canvas_layout = QtWidgets.QVBoxLayout()
@@ -185,10 +245,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
 
         main_layout = QtWidgets.QHBoxLayout()
         main_layout.addLayout(canvas_layout, 60)
-        main_layout.addLayout(tp_layout, 10)
-        main_layout.addLayout(tn_layout, 10)
-        main_layout.addLayout(fp_layout, 10)
-        main_layout.addLayout(fn_layout, 10)
+        main_layout.addLayout(right_half_layout, 40)
         self.setLayout(main_layout)
 
         thread = threading.Thread(target=self.update)
@@ -201,7 +258,14 @@ class EvaluationMainWindow(QtWidgets.QDialog):
 
     def feature_click(self, item):
         list_widget = item.listWidget()
-        feature = list_widget.getFeauture(item)
+        feature = list_widget.get_feature(item)
+        self.plot_feature(feature)
+
+    def next_feature(self, list_widget):
+        raw = list_widget.currentRow()
+        item = list_widget.item(min(raw + 1, list_widget.count() - 1))
+        list_widget.setCurrentItem(item)
+        feature = list_widget.get_feature(item)
         self.plot_feature(feature)
 
     def update(self):
@@ -240,11 +304,11 @@ class EvaluationMainWindow(QtWidgets.QDialog):
                 # append tp, tn, fp, fn
                 for feature in features:
                     if len(feature) == 2:
-                        self.tp_features.addFeature(feature)
+                        self.tp_features.add_feature(feature)
                     elif len(feature) == 1 and feature.samples[0][:2] == 'pr':
-                        self.fp_features.addFeature(feature)
+                        self.fp_features.add_feature(feature)
                     elif len(feature) == 1 and feature.samples[0][:2] == 'gt':
-                        self.fn_features.addFeature(feature)
+                        self.fn_features.add_feature(feature)
                     else:
                         print(len(feature)), print(feature.samples[0][:2])
                         assert False, feature.samples
@@ -252,9 +316,78 @@ class EvaluationMainWindow(QtWidgets.QDialog):
                 if len(features) == 0:
                     noise_feature = Feature(['noise/' + file], [roi], [[0, 0]], [0], [0],
                                             roi.mzmean, roi.rt[0], roi.rt[1], 0, 0)
-                    self.tn_features.addFeature(noise_feature)
+                    self.tn_features.add_feature(noise_feature)
 
     def plot_feature(self, feature):
         self.ax.clear()
         feature.plot(self.ax, shifted=False, show_legend=True)
         self.canvas.draw()  # refresh canvas
+
+    def get_statistics(self):
+        # to do: create a window with stats
+        tp_features = self.tp_features.get_all()
+        tn_features = self.tn_features.get_all()
+        fp_features = self.fp_features.get_all()
+        fn_features = self.fn_features.get_all()
+        subwindow = EvaluationStatisticsWindow(tp_features, tn_features, fp_features, fn_features, self)
+        subwindow.show()
+        pass
+
+
+class EvaluationStatisticsWindow(QtWidgets.QDialog):
+    def __init__(self, tp_features, tn_features, fp_features, fn_features, parent):
+        self.parent = parent
+        super().__init__(parent)
+        # auxiliary calculations
+        precision = len(tp_features) / (len(tp_features) + len(fp_features))
+        recall = len(tp_features) / (len(tp_features) + len(fn_features))
+
+        integration_accuracy = np.zeros(len(tp_features))
+        for i, feature in enumerate(tp_features):
+            integration_accuracy[i] = np.abs(feature.intensities[0] - feature.intensities[1]) / feature.intensities[1]
+        integration_accuracy = 1 - np.mean(integration_accuracy)
+
+        # print metrics
+        precision_label = QtWidgets.QLabel()
+        precision_label.setText(f'Precision = {precision:.2f}')
+        recall_label = QtWidgets.QLabel()
+        recall_label.setText(f'Recall = {recall:.2f}')
+        integration_accuracy_label = QtWidgets.QLabel()
+        integration_accuracy_label.setText(f'Integration accuracy = {integration_accuracy:.2f}')
+
+        # canvas for confusion matrix
+        self.figure = plt.figure()
+        self.ax = self.figure.add_subplot(111)  # plot here
+        self.canvas = FigureCanvas(self.figure)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addWidget(self.canvas)
+        main_layout.addWidget(precision_label)
+        main_layout.addWidget(recall_label)
+        main_layout.addWidget(integration_accuracy_label)
+
+        self.setLayout(main_layout)
+
+        self.plot_confusion_matrix(len(tp_features), len(tn_features), len(fp_features), len(fn_features))
+
+    def plot_confusion_matrix(self, tp, tn, fp, fn):
+        confusion_matrix = np.zeros((2, 2), np.int)
+        confusion_matrix[0, 0] = tp
+        confusion_matrix[0, 1] = fp
+        confusion_matrix[1, 0] = fn
+        confusion_matrix[1, 1] = tn
+
+        self.ax.set_title("Confusion matrix")
+        res = self.ax.imshow(confusion_matrix, cmap='GnBu', interpolation='nearest')
+        self.figure.colorbar(res)
+        self.ax.set_xticks(np.arange(2))
+        self.ax.set_xticklabels(['peak', 'noise'])
+        self.ax.set_yticks(np.arange(2))
+        self.ax.set_yticklabels(['peak', 'noise'])
+        self.ax.set_ylabel("predicted")
+        self.ax.set_xlabel("ground truth")
+        for i, row in enumerate(confusion_matrix):
+            for j, count in enumerate(row):
+                plt.text(j, i, count, fontsize=14, horizontalalignment='center', verticalalignment='center')
+
+        self.canvas.draw()

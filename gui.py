@@ -157,7 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         FileContextMenu(self, item)
 
     def feature_click(self, item):
-        feature = self.list_of_features.getFeauture(item)
+        feature = self.list_of_features.get_feature(item)
         self.plot_feature(feature)
 
     def open_files(self):
@@ -168,7 +168,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_features(self, features):
         for feature in features:
-            self.list_of_features.addFeature(feature)
+            self.list_of_features.add_feature(feature)
 
     def get_EIC_parameters(self):
         subwindow = EICParameterWindow(self)

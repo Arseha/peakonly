@@ -22,15 +22,22 @@ class FeatureListWidget(QtWidgets.QListWidget):
         super().__init__(*args, **kwargs)
         self.features = []
 
-    def addFeature(self, feature):
+    def add_feature(self, feature):
         name = f'#{len(self.features)}: mz = {feature.mz:.4f}, rt = {feature.rtmin:.2f} - {feature.rtmax:.2f}'
         self.features.append(feature)
         self.addItem(name)
 
-    def getFeauture(self, item):
+    def get_feature(self, item):
         number = item.text()
         number = int(number[number.find('#') + 1:number.find(':')])
         return self.features[number]
+
+    def get_all(self):
+        features = []
+        for i in range(self.count()):
+            item = self.item(i)
+            features.append(self.get_feature(item))
+        return features
 
 
 class GetFolderWidget(QtWidgets.QWidget):
