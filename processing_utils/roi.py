@@ -82,7 +82,8 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
     run = pymzml.run.Reader(path)
     scans = []
     for scan in run:
-        scans.append(scan)
+        if scan.ms_level == 1:
+            scans.append(scan)
 
     ROIs = []  # completed ROIs
     process_ROIs = FastAVLTree()  # processed ROIs
@@ -91,14 +92,18 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
     number = 1  # number of processed scan
     init_scan = scans[0]
     start_time = init_scan.scan_time[0]
+
+    min_mz = max(init_scan.mz)
+    max_mz = min(init_scan.mz)
     for mz, i in zip(init_scan.mz, init_scan.i):
-        process_ROIs[mz] = ProcessROI([1, 1],
-                                      [start_time, start_time],
-                                      [i],
-                                      [mz],
-                                      mz)
-    min_mz = min(init_scan.mz)
-    max_mz = max(init_scan.mz)
+        if i != 0:
+            process_ROIs[mz] = ProcessROI([1, 1],
+                                          [start_time, start_time],
+                                          [i],
+                                          [mz],
+                                          mz)
+            min_mz = min(min_mz, mz)
+            max_mz = max(max_mz, mz)
 
     for scan in tqdm(scans):
         if number == 1:  # already processed scan
@@ -106,49 +111,50 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
             continue
         # expand ROI
         for n, mz in enumerate(scan.mz):
-            ceiling_mz, ceiling_item = None, None
-            floor_mz, floor_item = None, None
-            if mz < max_mz:
-                _, ceiling_item = process_ROIs.ceiling_item(mz)
-                ceiling_mz = ceiling_item.mzmean
-            if mz > min_mz:
-                _, floor_item = process_ROIs.floor_item(mz)
-                floor_mz = floor_item.mzmean
-            # choose closest
-            if ceiling_mz is None and floor_mz is None:
-                continue
-            elif ceiling_mz is None:
-                closest_mz, closest_item = floor_mz, floor_item
-            elif floor_mz is None:
-                closest_mz, closest_item = ceiling_mz, ceiling_item
-            else:
-                if ceiling_mz - mz > mz - floor_mz:
+            if scan.i[n] != 0:
+                ceiling_mz, ceiling_item = None, None
+                floor_mz, floor_item = None, None
+                if mz < max_mz:
+                    _, ceiling_item = process_ROIs.ceiling_item(mz)
+                    ceiling_mz = ceiling_item.mzmean
+                if mz > min_mz:
+                    _, floor_item = process_ROIs.floor_item(mz)
+                    floor_mz = floor_item.mzmean
+                # choose closest
+                if ceiling_mz is None and floor_mz is None:
+                    continue
+                elif ceiling_mz is None:
                     closest_mz, closest_item = floor_mz, floor_item
-                else:
+                elif floor_mz is None:
                     closest_mz, closest_item = ceiling_mz, ceiling_item
-
-            if abs(closest_item.mzmean - mz) < delta_mz:
-                roi = closest_item
-                if roi.scan[1] == number:
-                    # ROIs is already extended (two peaks in one mz window)
-                    roi.mzmean = (roi.mzmean * roi.points + mz) / (roi.points + 1)
-                    roi.points += 1
-                    roi.mz[-1] = (roi.i[-1]*roi.mz[-1] + scan.i[n]*mz) / (roi.i[-1] + scan.i[n])
-                    roi.i[-1] = (roi.i[-1] + scan.i[n])
                 else:
-                    roi.mzmean = (roi.mzmean * roi.points + mz) / (roi.points + 1)
-                    roi.points += 1
-                    roi.mz.append(mz)
-                    roi.i.append(scan.i[n])
-                    roi.scan[1] = number  # show that we extended the roi
-                    roi.rt[1] = scan.scan_time[0]
-            else:
-                time = scan.scan_time[0]
-                process_ROIs[mz] = ProcessROI([number, number],
-                                              [time, time],
-                                              [scan.i[n]],
-                                              [mz],
-                                              mz)
+                    if ceiling_mz - mz > mz - floor_mz:
+                        closest_mz, closest_item = floor_mz, floor_item
+                    else:
+                        closest_mz, closest_item = ceiling_mz, ceiling_item
+
+                if abs(closest_item.mzmean - mz) < delta_mz:
+                    roi = closest_item
+                    if roi.scan[1] == number:
+                        # ROIs is already extended (two peaks in one mz window)
+                        roi.mzmean = (roi.mzmean * roi.points + mz) / (roi.points + 1)
+                        roi.points += 1
+                        roi.mz[-1] = (roi.i[-1]*roi.mz[-1] + scan.i[n]*mz) / (roi.i[-1] + scan.i[n])
+                        roi.i[-1] = (roi.i[-1] + scan.i[n])
+                    else:
+                        roi.mzmean = (roi.mzmean * roi.points + mz) / (roi.points + 1)
+                        roi.points += 1
+                        roi.mz.append(mz)
+                        roi.i.append(scan.i[n])
+                        roi.scan[1] = number  # show that we extended the roi
+                        roi.rt[1] = scan.scan_time[0]
+                else:
+                    time = scan.scan_time[0]
+                    process_ROIs[mz] = ProcessROI([number, number],
+                                                  [time, time],
+                                                  [scan.i[n]],
+                                                  [mz],
+                                                  mz)
         # Check and cleanup
         to_delete = []
         for mz, roi in process_ROIs.items():
@@ -183,7 +189,7 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
                         roi.i,
                         roi.mz,
                         roi.mzmean
-                    ))
+                        ))
     # expand constructed roi
     for roi in ROIs:
         for n in range(dropped_points):

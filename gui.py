@@ -221,11 +221,12 @@ class MainWindow(QtWidgets.QMainWindow):
             label = f'TIC: {file[:file.rfind(".")]}'
             if label not in self.label2line:
                 for scan in run:
-                    TIC.append(scan.TIC)  # get total ion of scan
-                    t, measure = scan.scan_time  # get scan time
-                    time.append(t)
-                    if not t_measure:
-                        t_measure = measure
+                    if scan.ms_level == 1:
+                        TIC.append(scan.TIC)  # get total ion of scan
+                        t, measure = scan.scan_time  # get scan time
+                        time.append(t)
+                        if not t_measure:
+                            t_measure = measure
 
                 line = self.ax.plot(time, TIC, label=label)
                 self.label2line[label] = line[0]  # save line
@@ -243,16 +244,17 @@ class MainWindow(QtWidgets.QMainWindow):
             label = f'EIC {mz:.4f} ± {delta:.4f}: {file[:file.rfind(".")]}'
             if label not in self.label2line:
                 for scan in run:
-                    t, measure = scan.scan_time  # get scan time
-                    time.append(t)
-                    pos = np.searchsorted(scan.mz, mz)
-                    closest = get_closest(scan.mz, mz, pos)
-                    if abs(scan.mz[closest] - mz) < delta:
-                        EIC.append(scan.i[closest])
-                    else:
-                        EIC.append(0)
-                    if not t_measure:
-                        t_measure = measure
+                    if scan.ms_level == 1:
+                        t, measure = scan.scan_time  # get scan time
+                        time.append(t)
+                        pos = np.searchsorted(scan.mz, mz)
+                        closest = get_closest(scan.mz, mz, pos)
+                        if abs(scan.mz[closest] - mz) < delta:
+                            EIC.append(scan.i[closest])
+                        else:
+                            EIC.append(0)
+                        if not t_measure:
+                            t_measure = measure
 
                 line = self.ax.plot(time, EIC, label=label)
                 self.label2line[label] = line[0]  # save line to remove then
