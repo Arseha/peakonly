@@ -17,6 +17,7 @@ from gui_utils.evaluation import EvaluationParameterWindow
 class MainWindow(QtWidgets.QMainWindow):
     # Initialization
     def __init__(self):
+        self.magic = 0  # (used to change shifted parameter in feature.plot()) to do: create ContextMenu?
         super().__init__()
         # create menu
         self.create_menu()
@@ -262,9 +263,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.canvas.draw()  # refresh canvas
 
     def plot_feature(self, feature):
+        self.magic += 1
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
-        feature.plot(self.ax, shifted=True)
+        if self.magic % 2:
+            feature.plot(self.ax, shifted=True)
+        else:
+            feature.plot(self.ax, shifted=False)
         self.canvas.draw()  # refresh canvas
 
 

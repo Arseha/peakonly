@@ -122,6 +122,12 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
                     floor_mz = floor_item.mzmean
                 # choose closest
                 if ceiling_mz is None and floor_mz is None:
+                    time = scan.scan_time[0]
+                    process_ROIs[mz] = ProcessROI([number, number],
+                                                  [time, time],
+                                                  [scan.i[n]],
+                                                  [mz],
+                                                  mz)
                     continue
                 elif ceiling_mz is None:
                     closest_mz, closest_item = floor_mz, floor_item
@@ -173,8 +179,12 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
                         roi.mzmean
                     ))
         process_ROIs.remove_items(to_delete)
-        min_mz, _ = process_ROIs.min_item()
-        max_mz, _ = process_ROIs.max_item()
+        try:
+            min_mz, _ = process_ROIs.min_item()
+            max_mz, _ = process_ROIs.max_item()
+        except ValueError:
+            min_mz = float('inf')
+            max_mz = 0
         number += 1
     # add final rois
     for mz, roi in process_ROIs.items():

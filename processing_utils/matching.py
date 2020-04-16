@@ -90,7 +90,7 @@ def intersected(begin1, end1, begin2, end2, percentage=None):
     return ans
 
 
-def roi_intersected(one_roi, two_roi, percentage=None):
+def roi_intersected(one_roi, two_roi, percentage=0.3):
     """
     A function that determines if two roi intersect based on rt and mz.
     :return: bool
@@ -304,7 +304,7 @@ def align_component(component, max_shift=20):
         base_sample, base_roi = None, None
         for sample in component:
             assert len(component[sample]) == 1
-            for roi in component[sample]:  # in fact there are only one roi
+            for roi in component[sample]:  # in fact there are only one roi after stitching
                 i = np.max(roi.i)
                 if i > max_i:
                     max_i = i
