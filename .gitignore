@@ -1,10 +1,12 @@
 *.mzML
+*.tmp
 .idea/
 *.ipynb
 *__pycache__*
 data/test/
 data/train/
 data/val/
+data/annotation/
 data/weights/
 data/tmp_weights/*
 !data/tmp_weights/.gitkeep 

@@ -66,6 +66,40 @@ class GetFolderWidget(QtWidgets.QWidget):
         return self.lineEdit.text()
 
 
+class GetFoldersWidget(QtWidgets.QWidget):
+    def __init__(self, label, parent=None):
+        super().__init__(parent)
+
+        button = QtWidgets.QToolButton()
+        button.setText('...')
+        button.clicked.connect(self.add_folder)
+
+        self.lineEdit = QtWidgets.QToolButton()
+        self.lineEdit.setText(label)
+
+        folder_getter_layout = QtWidgets.QHBoxLayout()
+        folder_getter_layout.addWidget(self.lineEdit, 85)
+        folder_getter_layout.addWidget(button, 15)
+
+        self.list_widget = QtWidgets.QListWidget()
+        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addLayout(folder_getter_layout)
+        main_layout.addWidget(self.list_widget)
+
+        self.setLayout(main_layout)
+
+    def add_folder(self):
+        directory = str(QtWidgets.QFileDialog.getExistingDirectory())
+        if directory:
+            self.list_widget.addItem(directory)
+
+    def get_folders(self):
+        folders = [f.text() for f in self.list_widget.selectedItems()]
+        return folders
+
+
 class GetFileWidget(QtWidgets.QWidget):
     def __init__(self, extension, default_file, parent):
         super().__init__(parent)

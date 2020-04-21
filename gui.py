@@ -1,5 +1,8 @@
+import os
 import sys
+import urllib.request
 import pymzml
+import zipfile
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import partial
@@ -12,6 +15,7 @@ from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWin
 from gui_utils.processing import ProcessingParameterWindow
 from gui_utils.training import TrainingParameterWindow
 from gui_utils.evaluation import EvaluationParameterWindow
+from gui_utils.data_splitting import SplitterParameterWindow
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -86,8 +90,24 @@ class MainWindow(QtWidgets.QMainWindow):
         data_mining_novel_reannotation.triggered.connect(partial(self.create_dataset, mode='reannotation'))
         data_mining.addAction(data_mining_novel_reannotation)
 
+        data_download = QtWidgets.QMenu('Download', self)
+        data_download_models = QtWidgets.QAction('Download trained models', self)
+        data_download_models.triggered.connect(partial(self.download, mode='models'))
+        data_download.addAction(data_download_models)
+        data_download_annotated_data = QtWidgets.QAction('Download annotated data', self)
+        data_download_annotated_data.triggered.connect(partial(self.download, mode='data'))
+        data_download.addAction(data_download_annotated_data)
+        data_download_example = QtWidgets.QAction('Download *.mzML example', self)
+        data_download_example.triggered.connect(partial(self.download, mode='example'))
+        data_download.addAction(data_download_example)
+
+        data_split = QtWidgets.QAction('Split data', self)
+        data_split.triggered.connect(self.split_data)
+
         data.addMenu(data_processing)
         data.addMenu(data_mining)
+        data.addMenu(data_download)
+        data.addAction(data_split)
 
         # Processing model submenu
         model = menu.addMenu('Model')
@@ -176,6 +196,41 @@ class MainWindow(QtWidgets.QMainWindow):
         subwindow.show()
 
     # Main functionality
+    @staticmethod
+    def download(mode):
+        """
+        Download necessary data
+        Parameters
+        ----------
+        mode : str
+            one of three ('models', 'data', 'example')
+        """
+        if mode == 'models':
+            # to do: add functionality to download models
+            pass
+        elif mode == 'data':
+            folder = 'data/annotation'
+            if not os.path.exists(folder):
+                os.mkdir(folder)
+            url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/f6BiwqWYF4UVnA'
+            file = 'data/annotation/annotation.zip'
+            urllib.request.urlretrieve(url, file)
+            with zipfile.ZipFile(file) as zip_file:
+                zip_file.extractall(folder)
+            os.remove(file)
+            # to do: create window, which writes that download is successful
+        elif mode == 'example':
+            url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/BhQNge3db7M2Lw'
+            file = 'data/mix.mzML'
+            urllib.request.urlretrieve(url, file)
+            # to do: create window, which writes that download is successful
+        else:
+            assert False, mode
+
+    def split_data(self):
+        subwindow = SplitterParameterWindow(self)
+        subwindow.show()
+
     def create_dataset(self, mode='manual'):
         if mode != 'reannotation':
             files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
@@ -275,6 +330,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 class FileContextMenu(QtWidgets.QMenu):
     def __init__(self, window: MainWindow, item: QtWidgets.QListWidgetItem):
+        super().__init__(window)
         for i in window.list_of_files.selectedItems():
             i.setSelected(False)
         item.setSelected(True)
