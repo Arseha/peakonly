@@ -1,8 +1,53 @@
 import os
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 
 
-class FileListWidget(QtWidgets.QListWidget):
+class ClickableListWidget(QtWidgets.QListWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.double_click = None
+        self.right_click = None
+
+    def mousePressEvent(self, QMouseEvent):
+        super(QtWidgets.QListWidget, self).mousePressEvent(QMouseEvent)
+        if QMouseEvent.button() == QtCore.Qt.RightButton and self.right_click is not None:
+            self.right_click()
+
+    def mouseDoubleClickEvent(self, QMouseEvent):
+        if self.double_click is not None:
+            if QMouseEvent.button() == QtCore.Qt.LeftButton:
+                item = self.itemAt(QMouseEvent.pos())
+                if item is not None:
+                    self.double_click(item)
+
+    def connectDoubleClick(self, method):
+        """
+        Set a callable object which should be called when a user double-clicks on item
+        Parameters
+        ----------
+        method : callable
+            any callable object
+        Returns
+        -------
+        - : None
+        """
+        self.double_click = method
+
+    def connectRightClick(self, method):
+        """
+        Set a callable object which should be called when a user double-clicks on item
+        Parameters
+        ----------
+        method : callable
+            any callable object
+        Returns
+        -------
+        - : None
+        """
+        self.right_click = method
+
+
+class FileListWidget(ClickableListWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.file2path = {}
@@ -15,6 +60,9 @@ class FileListWidget(QtWidgets.QListWidget):
     def deleteFile(self, item: QtWidgets.QListWidgetItem):
         del self.file2path[item.text()]
         self.takeItem(self.row(item))
+
+    def getPath(self, item: QtWidgets.QListWidgetItem):
+        return self.file2path[item.text()]
 
 
 class FeatureListWidget(QtWidgets.QListWidget):

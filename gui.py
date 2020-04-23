@@ -165,7 +165,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # List of opened files
         list_of_files = FileListWidget()
         list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        list_of_files.itemDoubleClicked.connect(self.file_click)
+        list_of_files.connectRightClick(self.file_right_click)
         return list_of_files
 
     def create_list_of_features(self):
@@ -174,8 +174,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return list_of_features
 
     # Auxiliary methods
-    def file_click(self, item):
-        FileContextMenu(self, item)
+    def file_right_click(self):
+        FileContextMenu(self)
 
     def feature_click(self, item):
         feature = self.list_of_features.get_feature(item)
@@ -329,14 +329,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 class FileContextMenu(QtWidgets.QMenu):
-    def __init__(self, window: MainWindow, item: QtWidgets.QListWidgetItem):
+    def __init__(self, window: MainWindow):
         super().__init__(window)
-        for i in window.list_of_files.selectedItems():
-            i.setSelected(False)
-        item.setSelected(True)
 
         self.window = window
-        self.item = item
+        # self.item = item
         self.menu = QtWidgets.QMenu(window)
 
         self.tic = QtWidgets.QAction('Plot TIC', window)
@@ -354,10 +351,11 @@ class FileContextMenu(QtWidgets.QMenu):
         elif action == self.eic:
             self.window.get_EIC_parameters()
         elif action == self.close:
-            self.close_file()
+            self.close_files()
 
-    def close_file(self):
-        self.window.list_of_files.deleteFile(self.item)
+    def close_files(self):
+        for item in self.window.list_of_files.selectedItems():
+            self.window.list_of_files.deleteFile(item)
 
 
 class EICParameterWindow(QtWidgets.QDialog):

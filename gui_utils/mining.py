@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtGui
 from processing_utils.roi import get_ROIs, construct_ROI
 # from processing_utils.run_utils import classifier_prediction
 from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget
@@ -182,7 +182,6 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.plotted_roi = None
         self.plotted_path = None
         self.plotted_item = None  # data reannotation
-        self.plotted_item_index = -1
         self.current_flag = False
 
         # if self.mode == 'semi-automatic':  # load models
@@ -216,6 +215,8 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         self.canvas = FigureCanvas(self.figure)
 
         self.rois_list = FileListWidget()
+        self.rois_list.connectRightClick(self.file_right_click)
+        self.rois_list.connectDoubleClick(self.file_double_click)
         files = []
         for created_file in os.listdir(self.folder):
             if created_file.endswith('.json'):
@@ -260,7 +261,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         skip_button.clicked.connect(self.skip)
         # plot chosen button
         plot_chosen_button = QtWidgets.QPushButton('Plot chosen ROI')
-        plot_chosen_button.clicked.connect(self.get_chosen)
+        plot_chosen_button.clicked.connect(self.press_plot_chosen)
 
 
         # button layout
@@ -283,6 +284,32 @@ class AnnotationMainWindow(QtWidgets.QDialog):
         main_layout.addLayout(button_layout)
         self.setLayout(main_layout)
 
+    # Auxiliary methods
+    def file_right_click(self):
+        FileContextMenu(self)
+
+    def file_double_click(self, item):
+        self.plotted_item = item
+        self.plot_chosen()
+
+    def get_chosen(self):
+        chosen_item = None
+        for item in self.rois_list.selectedItems():
+            chosen_item = item
+        return chosen_item
+
+    def close_file(self, item):
+        if item == self.plotted_item:
+            index = min(self.rois_list.row(self.plotted_item) + 1, self.rois_list.count() - 2)
+            self.plotted_item = self.rois_list.item(index)
+            self.plotted_item.setSelected(True)
+            self.plot_chosen()
+        self.rois_list.deleteFile(item)
+
+    def delete_file(self, item):
+        os.remove(self.rois_list.getPath(item))
+        self.close_file(item)
+
     # Buttons
     def noise(self):
         code = os.path.basename(self.plotted_path)
@@ -297,8 +324,8 @@ class AnnotationMainWindow(QtWidgets.QDialog):
             self.plot_current()
         else:
             self.plotted_item.setSelected(False)
-            self.plotted_item_index = min(self.plotted_item_index + 1, self.rois_list.count() - 1)
-            self.plotted_item = self.rois_list.item(self.plotted_item_index)
+            index = min(self.rois_list.row(self.plotted_item) + 1, self.rois_list.count() - 1)
+            self.plotted_item = self.rois_list.item(index)
             self.plotted_item.setSelected(True)
             self.plot_chosen()
 
@@ -314,8 +341,8 @@ class AnnotationMainWindow(QtWidgets.QDialog):
             self.plot_current()
         else:
             self.plotted_item.setSelected(False)
-            self.plotted_item_index = min(self.plotted_item_index + 1, self.rois_list.count() - 1)
-            self.plotted_item = self.rois_list.item(self.plotted_item_index)
+            index = min(self.rois_list.row(self.plotted_item) + 1, self.rois_list.count() - 1)
+            self.plotted_item = self.rois_list.item(index)
             self.plotted_item.setSelected(True)
             self.plot_chosen()
 
@@ -341,17 +368,11 @@ class AnnotationMainWindow(QtWidgets.QDialog):
             self.file_suffix += 1
             self.plot_current()
 
-    def get_chosen(self):
+    def press_plot_chosen(self):
         try:
-            self.plotted_item = None
-            self.plotted_item_index = -1
-            for item in self.rois_list.selectedItems():
-                self.plotted_item = item
+            self.plotted_item = self.get_chosen()
             if self.plotted_item is None:
                 raise ValueError
-            for j in range(self.rois_list.count()):
-                if self.plotted_item == self.rois_list.item(j):
-                    self.plotted_item_index = j
             self.plot_chosen()
         except ValueError:
             pass  # to do: create error window
@@ -583,9 +604,38 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
             self.parent.plot_current()
         else:
             self.parent.plotted_item.setSelected(False)
-            self.parent.plotted_item_index = min(self.parent.plotted_item_index + 1,
-                                                 self.parent.rois_list.count() - 1)
-            self.parent.plotted_item = self.parent.rois_list.item(self.parent.plotted_item_index)
+            index = min(self.parent.rois_list.row(self.parent.plotted_item) + 1, self.parent.rois_list.count() - 1)
+            self.parent.plotted_item = self.parent.rois_list.item(index)
             self.parent.plotted_item.setSelected(True)
             self.parent.plot_chosen()
         self.close()
+
+
+class FileContextMenu(QtWidgets.QMenu):
+    def __init__(self, parent: AnnotationMainWindow):
+        super().__init__(parent)
+
+        self.parent = parent
+        self.menu = QtWidgets.QMenu(parent)
+
+        self.close = QtWidgets.QAction('Close', parent)
+        self.delete = QtWidgets.QAction('Delete', parent)
+
+        self.menu.addAction(self.close)
+        self.menu.addAction(self.delete)
+
+        action = self.menu.exec_(QtGui.QCursor.pos())
+
+        if action == self.close:
+            self.close_file()
+        elif action == self.delete:
+            self.delete_file()
+
+    def close_file(self):
+        item = self.parent.get_chosen()
+        self.parent.close_file(item)
+
+
+    def delete_file(self):
+        item = self.parent.get_chosen()
+        self.parent.delete_file(item)
