@@ -6,16 +6,17 @@ import zipfile
 import matplotlib.pyplot as plt
 import numpy as np
 from functools import partial
-from PyQt5 import QtWidgets, QtGui
+from PyQt5 import QtWidgets, QtGui, QtCore
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from processing_utils.roi import get_closest
-from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget
+from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget, ProgressBarsList, ProgressBarsListItem
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
 from gui_utils.processing import ProcessingParameterWindow
 from gui_utils.training import TrainingParameterWindow
 from gui_utils.evaluation import EvaluationParameterWindow
 from gui_utils.data_splitting import SplitterParameterWindow
+from gui_utils.threading import Worker
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -23,6 +24,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         self.magic = 0  # (used to change shifted parameter in feature.plot()) to do: create ContextMenu?
         super().__init__()
+        self.threadpool = QtCore.QThreadPool()
         # create menu
         self.create_menu()
 
@@ -44,10 +46,20 @@ class MainWindow(QtWidgets.QMainWindow):
         canvas_layout.addWidget(self.toolbar)
         canvas_layout.addWidget(self.canvas)
 
-        main_layout = QtWidgets.QHBoxLayout()
-        main_layout.addWidget(self.list_of_files, 15)
-        main_layout.addLayout(canvas_layout, 70)
-        main_layout.addWidget(self.list_of_features, 15)
+        canvas_files_features_layout = QtWidgets.QHBoxLayout()
+        canvas_files_features_layout.addWidget(self.list_of_files, 15)
+        canvas_files_features_layout.addLayout(canvas_layout, 70)
+        canvas_files_features_layout.addWidget(self.list_of_features, 15)
+
+        self.pb_list = ProgressBarsList(self)
+        scrollable_pb_list = QtWidgets.QScrollArea()
+        scrollable_pb_list.setWidget(self.pb_list)
+        scrollable_pb_list.setWidgetResizable(True)
+
+        main_layout = QtWidgets.QVBoxLayout()
+        main_layout.addLayout(canvas_files_features_layout, 90)
+        main_layout.addWidget(scrollable_pb_list, 10)
+
         widget = QtWidgets.QWidget()
         widget.setLayout(main_layout)
 
@@ -92,13 +104,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         data_download = QtWidgets.QMenu('Download', self)
         data_download_models = QtWidgets.QAction('Download trained models', self)
-        data_download_models.triggered.connect(partial(self.download, mode='models'))
+        data_download_models.triggered.connect(partial(self.download_button, mode='models'))
         data_download.addAction(data_download_models)
         data_download_annotated_data = QtWidgets.QAction('Download annotated data', self)
-        data_download_annotated_data.triggered.connect(partial(self.download, mode='data'))
+        data_download_annotated_data.triggered.connect(partial(self.download_button, mode='data'))
         data_download.addAction(data_download_annotated_data)
         data_download_example = QtWidgets.QAction('Download *.mzML example', self)
-        data_download_example.triggered.connect(partial(self.download, mode='example'))
+        data_download_example.triggered.connect(partial(self.download_button, mode='example'))
         data_download.addAction(data_download_example)
 
         data_split = QtWidgets.QAction('Split data', self)
@@ -195,35 +207,85 @@ class MainWindow(QtWidgets.QMainWindow):
         subwindow = EICParameterWindow(self)
         subwindow.show()
 
-    # Main functionality
     @staticmethod
-    def download(mode):
+    def show_progress(progress, pb):
+        pb.setValue(progress)
+
+    @staticmethod
+    def show_downloading_progress(number_of_block, size_of_block, total_size, pb):
+        pb.setValue(int(number_of_block * size_of_block * 100 / total_size))
+
+    def show_message(self, text, icon, pb=None):
+        if pb is not None:
+            self.pb_list.removeItem(pb)
+            pb.setParent(None)
+        msg = QtWidgets.QMessageBox(self)
+        msg.setText(text)
+        msg.setIcon(icon)
+        msg.exec_()
+
+    # Buttons, which creates threads
+    def download_button(self, mode):
+        if mode == 'models':
+            text = 'Downloading trained models:'
+        elif mode == 'data':
+            text = 'Downloading annotated data:'
+        elif mode == 'example':
+            text = 'Downloading *.mzML example:'
+        else:
+            assert False, mode
+
+        pb = ProgressBarsListItem(text, parent=self.pb_list)
+        self.pb_list.addItem(pb)
+        worker = Worker(self.download, download=True, mode=mode)
+        worker.signals.download_progress.connect(partial(self.show_downloading_progress, pb=pb))
+        worker.signals.finished.connect(partial(self.show_message,
+                                                text='Download is successful',
+                                                icon=QtWidgets.QMessageBox.Information,
+                                                pb=pb))
+        self.threadpool.start(worker)
+
+    # Main functionality
+    def download(self, mode, progress_callback):
         """
         Download necessary data
         Parameters
         ----------
         mode : str
             one of three ('models', 'data', 'example')
+        progress_callback : QtCore.pyqtSignal
+            indicating progress in %
         """
         if mode == 'models':
-            # to do: add functionality to download models
-            pass
+            folder = 'data/weights'
+            if not os.path.exists(folder):
+                os.mkdir(folder)
+            # Classifier
+            url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/rAhl2u7WeIUGYA'
+            file = os.path.join(folder, 'Classifier.pt')
+            urllib.request.urlretrieve(url, file, progress_callback.emit)
+            # Segmentator
+            url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/9m5e3C0q0HKbuw'
+            file = os.path.join(folder, 'Segmentator.pt')
+            urllib.request.urlretrieve(url, file, progress_callback.emit)
+            # RecurrentCNN
+            url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/1IrXRWDWhANqKw'
+            file = os.path.join(folder, 'RecurrentCNN.pt')
+            urllib.request.urlretrieve(url, file, progress_callback.emit)
         elif mode == 'data':
             folder = 'data/annotation'
             if not os.path.exists(folder):
                 os.mkdir(folder)
             url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/f6BiwqWYF4UVnA'
             file = 'data/annotation/annotation.zip'
-            urllib.request.urlretrieve(url, file)
+            urllib.request.urlretrieve(url, file, progress_callback.emit)
             with zipfile.ZipFile(file) as zip_file:
                 zip_file.extractall(folder)
             os.remove(file)
-            # to do: create window, which writes that download is successful
         elif mode == 'example':
             url = 'https://getfile.dokpub.com/yandex/get/https://yadi.sk/d/BhQNge3db7M2Lw'
             file = 'data/mix.mzML'
-            urllib.request.urlretrieve(url, file)
-            # to do: create window, which writes that download is successful
+            urllib.request.urlretrieve(url, file, progress_callback.emit)
         else:
             assert False, mode
 

@@ -88,6 +88,40 @@ class FeatureListWidget(QtWidgets.QListWidget):
         return features
 
 
+class ProgressBarsListItem(QtWidgets.QWidget):
+    def __init__(self, text, pb=None, parent=None):
+        super().__init__(parent)
+        self.pb = pb
+        if self.pb is None:
+            self.pb = QtWidgets.QProgressBar()
+
+        label = QtWidgets.QLabel(self)
+        label.setText(text)
+
+        main_layout = QtWidgets.QHBoxLayout()
+        main_layout.addWidget(label, 30)
+        main_layout.addWidget(self.pb, 70)
+
+        self.setLayout(main_layout)
+
+    def setValue(self, value):
+        self.pb.setValue(value)
+
+
+class ProgressBarsList(QtWidgets.QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.main_layout = QtWidgets.QVBoxLayout()
+        self.setLayout(self.main_layout)
+
+    def removeItem(self, item):
+        self.layout().removeWidget(item)
+
+    def addItem(self, item):
+        self.layout().addWidget(item)
+
+
 class GetFolderWidget(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
