@@ -149,6 +149,7 @@ def train_model(model, loader, val_loader,
                 loss = loss + integration_criterion(integrator_output[:, 0, :], integration_mask)
             if intersection_criterion is not None:
                 loss = loss + intersection_criterion(integrator_output[:, 1, :], intersection_mask)
+            loss = loss / accumulation
             loss.backward()
 
             step += 1
@@ -190,12 +191,17 @@ def train_model(model, loader, val_loader,
         val_segmentation_score_history.append(float(segemntation_score_accum / count))
 
         # save best model based on classification score (if it is not None)
-        if val_classification_score_history[-1] > 0:
+        if classification_metric is not None and segmentation_metric is not None:
+            if best_score < val_classification_score_history[-1] * val_segmentation_score_history[-1]:
+                best_score = val_classification_score_history[-1] * val_segmentation_score_history[-1]
+                torch.save(model.state_dict(),
+                           os.path.join('data/tmp_weights', model.__class__.__name__))  # save best model
+        elif classification_metric is not None:
             if best_score < val_classification_score_history[-1]:
                 best_score = val_classification_score_history[-1]
                 torch.save(model.state_dict(),
                            os.path.join('data/tmp_weights', model.__class__.__name__))  # save best model
-        elif val_segmentation_score_history[-1] > 0:
+        elif segmentation_metric is not None:
             if best_score < val_segmentation_score_history[-1]:
                 best_score = val_segmentation_score_history[-1]
                 torch.save(model.state_dict(),
@@ -220,6 +226,7 @@ def train_model(model, loader, val_loader,
 
         # visualization
         if loss_ax is not None:
+            loss_ax.clear()
             loss_ax.plot(loss_history)
             loss_ax.set_title('Loss function')
         if classification_score_ax is not None:

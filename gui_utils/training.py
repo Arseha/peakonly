@@ -112,12 +112,13 @@ class TrainingMainWindow(QtWidgets.QDialog):
             # create model
             model = RecurrentCNN().to(device)
             optimizer = optim.Adam(params=model.parameters(), lr=1e-3)
+            scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=15, eta_min=1e-6)
             label_criterion = nn.CrossEntropyLoss()
-            integration_criterion = nn.BCEWithLogitsLoss()
-            intersection_criterion = nn.BCEWithLogitsLoss()
+            integration_criterion = CombinedLoss([0.4, 0.2])
+            intersection_criterion = CombinedLoss([0.1, 2])
             # add training widget
             main_layout.addWidget(TrainingMainWidget(train_loader, val_loader, model, optimizer, accuracy, iou,
-                                                     None, label_criterion, integration_criterion,
+                                                     scheduler, label_criterion, integration_criterion,
                                                      intersection_criterion, 64, self))
         elif self.mode == 'sequential':
             # create data loaders
@@ -294,7 +295,7 @@ class SaveModelWindow(QtWidgets.QDialog):
         self.name_getter = QtWidgets.QLineEdit(self)
         self.name_getter.setText('model.pt')
 
-        save_button = QtWidgets.QPushButton('Restart')
+        save_button = QtWidgets.QPushButton('Save')
         save_button.clicked.connect(self.save)
 
         main_layout = QtWidgets.QVBoxLayout()
@@ -303,6 +304,8 @@ class SaveModelWindow(QtWidgets.QDialog):
         main_layout.addWidget(name_label)
         main_layout.addWidget(self.name_getter)
         main_layout.addWidget(save_button)
+
+        self.setLayout(main_layout)
 
     def save(self):
         folder = self.folder_getter.get_folder()
