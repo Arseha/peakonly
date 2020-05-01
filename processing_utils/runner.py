@@ -170,7 +170,10 @@ class FilesRunner(BasicRunner):
             if progress_callback is not None and new_percentage > percentage:
                 percentage = new_percentage
                 progress_callback.emit(percentage)
-        return features
+
+        parameters = {'files': [file], 'delta mz': self.delta_mz, 'required points': self.required_points,
+                      'dropped_points': self.dropped_points, 'peak minimum points': self.peak_minimum_points}
+        return features, parameters
 
     def _batch_run(self, files, progress_callback=None):
         """
@@ -259,4 +262,6 @@ class FilesRunner(BasicRunner):
         for j in to_delete[::-1]:
             features.pop(j)
         print('total number of features: {}'.format(len(features)))
-        return features
+        parameters = {'files': files, 'delta mz': self.delta_mz, 'required points': self.required_points,
+                      'dropped_points': self.dropped_points, 'peak minimum points': self.peak_minimum_points}
+        return features, parameters

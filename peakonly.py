@@ -10,6 +10,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from processing_utils.roi import get_closest
+from processing_utils.postprocess import ResultTable
 from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget, ProgressBarsList, ProgressBarsListItem
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
 from gui_utils.processing import ProcessingParameterWindow
@@ -32,6 +33,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # create list of founded features
         self.list_of_features = self.create_list_of_features()
+        self.feature_parameters = None  # to do: add possibility process several batches
 
         # Main canvas and toolbar
         self.figure = plt.figure()
@@ -76,11 +78,17 @@ class MainWindow(QtWidgets.QMainWindow):
         file = menu.addMenu('File')
 
         file_import = QtWidgets.QMenu('Import', self)
-        file_import_single = QtWidgets.QAction('Import *.mzML', self)
-        file_import_single.triggered.connect(self.open_files)
-        file_import.addAction(file_import_single)
+        file_import_mzML = QtWidgets.QAction('Import *.mzML', self)
+        file_import_mzML.triggered.connect(self.open_files)
+        file_import.addAction(file_import_mzML)
+
+        file_export = QtWidgets.QMenu('Export', self)
+        file_export_features = QtWidgets.QAction('Export features as *.csv file', self)
+        file_export_features.triggered.connect(self.export_features)
+        file_export.addAction(file_export_features)
 
         file.addMenu(file_import)
+        file.addMenu(file_export)
 
         # data submenu
         data = menu.addMenu('Data')
@@ -196,9 +204,22 @@ class MainWindow(QtWidgets.QMainWindow):
         for name in filenames:
             self.list_of_files.addFile(name)
 
-    def set_features(self, features):
+    def set_features(self, obj):
+        features, parameters = obj
+        self.list_of_features.clear()
         for feature in features:
             self.list_of_features.add_feature(feature)
+        self.feature_parameters = parameters
+
+    def export_features(self):
+        if self.list_of_features.count() > 0:
+            # to do: features should be QTreeWidget (root should keep basic information: files and parameters)
+            files = self.feature_parameters['files']
+            table = ResultTable(files, self.list_of_features.features)
+            table.fill_zeros(self.feature_parameters['delta mz'])
+            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Export features', '',
+                                                                 'csv (*.csv)')
+            table.to_csv(file_name)
 
     def get_eic_parameters(self):
         subwindow = EICParameterWindow(self)
@@ -219,6 +240,10 @@ class MainWindow(QtWidgets.QMainWindow):
             msg.exec_()
 
     def plotter(self, obj):
+        if not self.label2line:  # in case if 'feature' was plotted
+            self.figure.clear()
+            self.ax = self.figure.add_subplot(111)
+
         line = self.ax.plot(obj['x'], obj['y'], label=obj['label'])
         self.label2line[obj['label']] = line[0]  # save line
         self.ax.legend(loc='best')
@@ -371,6 +396,8 @@ class MainWindow(QtWidgets.QMainWindow):
                     t_measure = measure
                 if progress_callback is not None and not i % 10:
                     progress_callback.emit(int(i * 100 / spectrum_count))
+        if t_measure == 'second':
+            time = np.array(time) / 60
         return {'x': time, 'y': TIC, 'label': label}
 
     @staticmethod
@@ -397,6 +424,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return {'x': time, 'y': EIC, 'label': label}
 
     def plot_feature(self, feature, shifted=True):
+        self.label2line = dict()  # empty plotted TIC and EIC
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
         feature.plot(self.ax, shifted=shifted)

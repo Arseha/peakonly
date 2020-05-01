@@ -87,6 +87,10 @@ class FeatureListWidget(ClickableListWidget):
             features.append(self.get_feature(item))
         return features
 
+    def clear(self):
+        super(FeatureListWidget, self).clear()
+        self.features = []
+
 
 class ProgressBarsListItem(QtWidgets.QWidget):
     def __init__(self, text, pb=None, parent=None):
