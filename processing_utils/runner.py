@@ -1,5 +1,4 @@
 import numpy as np
-from tqdm import tqdm
 from processing_utils.roi import get_ROIs
 from processing_utils.matching import construct_mzregions, rt_grouping, align_component
 from processing_utils.run_utils import preprocess, get_borders, Feature, \
@@ -44,7 +43,7 @@ class BasicRunner:
         self.peak_minimum_points = peak_minimum_points
         self.device = device
 
-    def __call__(self, roi, sample_name):
+    def __call__(self, roi, sample_name, progress_callback=None):
         """
         Processing single roi
 
@@ -136,17 +135,17 @@ class FilesRunner(BasicRunner):
         self.required_points = required_points
         self.dropped_points = dropped_points
 
-    def __call__(self, files):
+    def __call__(self, files, progress_callback=None):
         if len(files) == 1:
             file = files[0]
-            features = self._single_run(file)
+            features = self._single_run(file, progress_callback)
         elif len(files) > 1:
-            features = self._batch_run(files)
+            features = self._batch_run(files, progress_callback)
         else:
             features = []
         return features
 
-    def _single_run(self, file):
+    def _single_run(self, file, progress_callback=None):
         """
         Processing single *.mzML file
 
@@ -160,14 +159,20 @@ class FilesRunner(BasicRunner):
         features : list
             a list of 'Feature' objects (each consist of single ROI)
         """
-        rois = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points)  # get ROIs from raw spectrum
+        # get ROIs from raw spectrum
+        rois = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points, progress_callback)
         features = []
-        for roi in tqdm(rois):
+        percentage = -1
+        for i, roi in enumerate(rois):
             features_from_roi = super(FilesRunner, self).__call__(roi, file)
             features.extend(features_from_roi)
+            new_percentage = int(i * 100 / len(rois))
+            if progress_callback is not None and new_percentage > percentage:
+                percentage = new_percentage
+                progress_callback.emit(percentage)
         return features
 
-    def _batch_run(self, files):
+    def _batch_run(self, files, progress_callback=None):
         """
         Processing a batch of  *.mzML files
 
@@ -184,19 +189,25 @@ class FilesRunner(BasicRunner):
         # ROI detection
         rois = {}
         for file in files:  # get ROIs for every file
-            rois[file] = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points)
+            rois[file] = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points, progress_callback)
 
         # ROI alignment
         mzregions = construct_mzregions(rois, self.delta_mz)  # construct mz regions
         components = rt_grouping(mzregions)  # group ROIs in mz regions based on RT
         aligned_components = []  # component alignment
-        for component in components:
+        percentage = -1
+        for i, component in enumerate(components):
             aligned_components.append(align_component(component))
+            new_percentage = int(i * 100 / len(rois))
+            if progress_callback is not None and new_percentage > percentage:
+                percentage = new_percentage
+                progress_callback.emit(percentage)
 
         # Classification, integration and correction
         component_number = 0
         features = []
-        for component in tqdm(aligned_components):  # run through components
+        percentage = -1
+        for j, component in enumerate(aligned_components):  # run through components
             borders = {}  # borders for rois with peaks
             to_delete = []  # noisy rois in components
             for i, (sample, roi) in enumerate(zip(component.samples, component.rois)):
@@ -232,6 +243,12 @@ class FilesRunner(BasicRunner):
                 border_correction(component, borders)
                 features.extend(build_features(component, borders, component_number))
                 component_number += 1
+
+            new_percentage = int(j * 100 / len(rois))
+            if progress_callback is not None and new_percentage > percentage:
+                percentage = new_percentage
+                progress_callback.emit(percentage)
+
         features = feature_collapsing(features)
         # to do: is it necessary?
         # explicitly delete features which were found in not enough quantity of ROIs

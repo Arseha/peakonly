@@ -65,7 +65,7 @@ class FileListWidget(ClickableListWidget):
         return self.file2path[item.text()]
 
 
-class FeatureListWidget(QtWidgets.QListWidget):
+class FeatureListWidget(ClickableListWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.features = []

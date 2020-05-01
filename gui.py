@@ -22,7 +22,6 @@ from gui_utils.threading import Worker
 class MainWindow(QtWidgets.QMainWindow):
     # Initialization
     def __init__(self):
-        self.magic = 0  # (used to change shifted parameter in feature.plot()) to do: create ContextMenu?
         super().__init__()
         self.threadpool = QtCore.QThreadPool()
         # create menu
@@ -157,10 +156,10 @@ class MainWindow(QtWidgets.QMainWindow):
         visual = menu.addMenu('Visualization')
 
         visual_tic = QtWidgets.QAction('Plot TIC', self)
-        visual_tic.triggered.connect(self.plot_TIC)
+        visual_tic.triggered.connect(self.plot_tic_button)
 
         visual_eic = QtWidgets.QAction('Plot EIC', self)
-        visual_eic.triggered.connect(self.get_EIC_parameters)
+        visual_eic.triggered.connect(self.get_eic_parameters)
 
         visual_clear = QtWidgets.QAction('Clear', self)
         visual_clear.triggered.connect(self.open_clear_window)
@@ -177,18 +176,16 @@ class MainWindow(QtWidgets.QMainWindow):
         # List of opened files
         list_of_files = FileListWidget()
         list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        list_of_files.connectRightClick(self.file_right_click)
+        list_of_files.connectRightClick(partial(FileContextMenu, self))
         return list_of_files
 
     def create_list_of_features(self):
         list_of_features = FeatureListWidget()
-        list_of_features.itemDoubleClicked.connect(self.feature_click)
+        list_of_features.connectDoubleClick(self.feature_click)
+        list_of_features.connectRightClick(partial(FeatureContextMenu, self))
         return list_of_features
 
     # Auxiliary methods
-    def file_right_click(self):
-        FileContextMenu(self)
-
     def feature_click(self, item):
         feature = self.list_of_features.get_feature(item)
         self.plot_feature(feature)
@@ -203,26 +200,29 @@ class MainWindow(QtWidgets.QMainWindow):
         for feature in features:
             self.list_of_features.add_feature(feature)
 
-    def get_EIC_parameters(self):
+    def get_eic_parameters(self):
         subwindow = EICParameterWindow(self)
         subwindow.show()
-
-    @staticmethod
-    def show_progress(progress, pb):
-        pb.setValue(progress)
 
     @staticmethod
     def show_downloading_progress(number_of_block, size_of_block, total_size, pb):
         pb.setValue(int(number_of_block * size_of_block * 100 / total_size))
 
-    def show_message(self, text, icon, pb=None):
+    def threads_finisher(self, text=None, icon=None, pb=None):
         if pb is not None:
             self.pb_list.removeItem(pb)
             pb.setParent(None)
-        msg = QtWidgets.QMessageBox(self)
-        msg.setText(text)
-        msg.setIcon(icon)
-        msg.exec_()
+        if text is not None:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText(text)
+            msg.setIcon(icon)
+            msg.exec_()
+
+    def plotter(self, obj):
+        line = self.ax.plot(obj['x'], obj['y'], label=obj['label'])
+        self.label2line[obj['label']] = line[0]  # save line
+        self.ax.legend(loc='best')
+        self.canvas.draw()
 
     # Buttons, which creates threads
     def download_button(self, mode):
@@ -239,14 +239,47 @@ class MainWindow(QtWidgets.QMainWindow):
         self.pb_list.addItem(pb)
         worker = Worker(self.download, download=True, mode=mode)
         worker.signals.download_progress.connect(partial(self.show_downloading_progress, pb=pb))
-        worker.signals.finished.connect(partial(self.show_message,
+        worker.signals.finished.connect(partial(self.threads_finisher,
                                                 text='Download is successful',
                                                 icon=QtWidgets.QMessageBox.Information,
                                                 pb=pb))
         self.threadpool.start(worker)
 
+    def plot_tic_button(self):
+        for file in self.list_of_files.selectedItems():
+            file = file.text()
+            label = f'TIC: {file[:file.rfind(".")]}'
+            if label not in self.label2line:
+                path = self.list_of_files.file2path[file]
+
+                pb = ProgressBarsListItem(f'Plotting TIC: {file}', parent=self.pb_list)
+                self.pb_list.addItem(pb)
+                worker = Worker(self.construct_tic, path, label)
+                worker.signals.progress.connect(pb.setValue)
+                worker.signals.result.connect(self.plotter)
+                worker.signals.finished.connect(partial(self.threads_finisher, pb=pb))
+
+                self.threadpool.start(worker)
+
+    def plot_eic_button(self, mz, delta):
+        for file in self.list_of_files.selectedItems():
+            file = file.text()
+            label = f'EIC {mz:.4f} ± {delta:.4f}: {file[:file.rfind(".")]}'
+            if label not in self.label2line:
+                path = self.list_of_files.file2path[file]
+
+                pb = ProgressBarsListItem(f'Plotting EIC (mz={mz:.4f}): {file}', parent=self.pb_list)
+                self.pb_list.addItem(pb)
+                worker = Worker(self.construct_eic, path, label, mz, delta)
+                worker.signals.progress.connect(pb.setValue)
+                worker.signals.result.connect(self.plotter)
+                worker.signals.finished.connect(partial(self.threads_finisher, pb=pb))
+
+                self.threadpool.start(worker)
+
     # Main functionality
-    def download(self, mode, progress_callback):
+    @staticmethod
+    def download(mode, progress_callback):
         """
         Download necessary data
         Parameters
@@ -300,7 +333,7 @@ class MainWindow(QtWidgets.QMainWindow):
             subwindow = AnnotationParameterWindow(files, mode, self)
             subwindow.show()
         else:
-            subwindow = ReAnnotationParameterWindow(mode, self)
+            subwindow = ReAnnotationParameterWindow(self)
             subwindow.show()
 
     def data_processing(self, mode):
@@ -322,85 +355,64 @@ class MainWindow(QtWidgets.QMainWindow):
         subwindow.show()
 
     # Visualization
-    def plot(self, x, y):
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        ax.plot(x, y)
-        self.canvas.draw()  # refresh canvas
+    @staticmethod
+    def construct_tic(path, label, progress_callback=None):
+        run = pymzml.run.Reader(path)
+        t_measure = None
+        time = []
+        TIC = []
+        spectrum_count = run.get_spectrum_count()
+        for i, scan in enumerate(run):
+            if scan.ms_level == 1:
+                TIC.append(scan.TIC)  # get total ion of scan
+                t, measure = scan.scan_time  # get scan time
+                time.append(t)
+                if not t_measure:
+                    t_measure = measure
+                if progress_callback is not None and not i % 10:
+                    progress_callback.emit(int(i * 100 / spectrum_count))
+        return {'x': time, 'y': TIC, 'label': label}
 
-    def plot_TIC(self):
-        files = [f.text() for f in self.list_of_files.selectedItems()]
-        for file in files:
-            path = self.list_of_files.file2path[file]
-            run = pymzml.run.Reader(path)
-            t_measure = None
-            time = []
-            TIC = []
-            label = f'TIC: {file[:file.rfind(".")]}'
-            if label not in self.label2line:
-                for scan in run:
-                    if scan.ms_level == 1:
-                        TIC.append(scan.TIC)  # get total ion of scan
-                        t, measure = scan.scan_time  # get scan time
-                        time.append(t)
-                        if not t_measure:
-                            t_measure = measure
+    @staticmethod
+    def construct_eic(path, label, mz, delta, progress_callback=None):
+        run = pymzml.run.Reader(path)
+        t_measure = None
+        time = []
+        EIC = []
+        spectrum_count = run.get_spectrum_count()
+        for i, scan in enumerate(run):
+            if scan.ms_level == 1:
+                t, measure = scan.scan_time  # get scan time
+                time.append(t)
+                pos = np.searchsorted(scan.mz, mz)
+                closest = get_closest(scan.mz, mz, pos)
+                if abs(scan.mz[closest] - mz) < delta:
+                    EIC.append(scan.i[closest])
+                else:
+                    EIC.append(0)
+                if not t_measure:
+                    t_measure = measure
+                if progress_callback is not None and not i % 10:
+                    progress_callback.emit(int(i * 100 / spectrum_count))
+        return {'x': time, 'y': EIC, 'label': label}
 
-                line = self.ax.plot(time, TIC, label=label)
-                self.label2line[label] = line[0]  # save line
-                self.ax.legend(loc='best')
-        self.canvas.draw()  # refresh canvas
-
-    def plot_EIC(self, mz, delta):
-        files = [f.text() for f in self.list_of_files.selectedItems()]
-        for file in files:
-            path = self.list_of_files.file2path[file]
-            run = pymzml.run.Reader(path)
-            t_measure = None
-            time = []
-            EIC = []
-            label = f'EIC {mz:.4f} ± {delta:.4f}: {file[:file.rfind(".")]}'
-            if label not in self.label2line:
-                for scan in run:
-                    if scan.ms_level == 1:
-                        t, measure = scan.scan_time  # get scan time
-                        time.append(t)
-                        pos = np.searchsorted(scan.mz, mz)
-                        closest = get_closest(scan.mz, mz, pos)
-                        if abs(scan.mz[closest] - mz) < delta:
-                            EIC.append(scan.i[closest])
-                        else:
-                            EIC.append(0)
-                        if not t_measure:
-                            t_measure = measure
-
-                line = self.ax.plot(time, EIC, label=label)
-                self.label2line[label] = line[0]  # save line to remove then
-                self.ax.legend(loc='best')
-        self.canvas.draw()  # refresh canvas
-
-    def plot_feature(self, feature):
-        self.magic += 1
+    def plot_feature(self, feature, shifted=True):
         self.figure.clear()
         self.ax = self.figure.add_subplot(111)
-        if self.magic % 2:
-            feature.plot(self.ax, shifted=True)
-        else:
-            feature.plot(self.ax, shifted=False)
+        feature.plot(self.ax, shifted=shifted)
         self.canvas.draw()  # refresh canvas
 
 
 class FileContextMenu(QtWidgets.QMenu):
-    def __init__(self, window: MainWindow):
-        super().__init__(window)
+    def __init__(self, parent: MainWindow):
+        super().__init__(parent)
 
-        self.window = window
-        # self.item = item
-        self.menu = QtWidgets.QMenu(window)
+        self.parent = parent
+        self.menu = QtWidgets.QMenu(parent)
 
-        self.tic = QtWidgets.QAction('Plot TIC', window)
-        self.eic = QtWidgets.QAction('Plot EIC', window)
-        self.close = QtWidgets.QAction('Close', window)
+        self.tic = QtWidgets.QAction('Plot TIC', parent)
+        self.eic = QtWidgets.QAction('Plot EIC', parent)
+        self.close = QtWidgets.QAction('Close', parent)
 
         self.menu.addAction(self.tic)
         self.menu.addAction(self.eic)
@@ -409,15 +421,38 @@ class FileContextMenu(QtWidgets.QMenu):
         action = self.menu.exec_(QtGui.QCursor.pos())
 
         if action == self.tic:
-            self.window.plot_TIC()
+            self.parent.plot_tic_button()
         elif action == self.eic:
-            self.window.get_EIC_parameters()
+            self.parent.get_eic_parameters()
         elif action == self.close:
             self.close_files()
 
     def close_files(self):
-        for item in self.window.list_of_files.selectedItems():
-            self.window.list_of_files.deleteFile(item)
+        for item in self.parent.list_of_files.selectedItems():
+            self.parent.list_of_files.deleteFile(item)
+
+
+class FeatureContextMenu(QtWidgets.QMenu):
+    def __init__(self, parent: MainWindow):
+        self.parent = parent
+        super().__init__(parent)
+        self.feature = None
+        for item in self.parent.list_of_features.selectedItems():
+            self.feature = self.parent.list_of_features.get_feature(item)
+        self.menu = QtWidgets.QMenu(parent)
+
+        self.with_rt_correction = QtWidgets.QAction('Plot with rt correction', parent)
+        self.without_rt_correction = QtWidgets.QAction('Plot without rt correction', parent)
+
+        self.menu.addAction(self.with_rt_correction)
+        self.menu.addAction(self.without_rt_correction)
+
+        action = self.menu.exec_(QtGui.QCursor.pos())
+
+        if action == self.with_rt_correction:
+            self.parent.plot_feature(self.feature, shifted=True)
+        elif action == self.without_rt_correction:
+            self.parent.plot_feature(self.feature, shifted=False)
 
 
 class EICParameterWindow(QtWidgets.QDialog):
@@ -454,7 +489,7 @@ class EICParameterWindow(QtWidgets.QDialog):
         # to do: raise exception
         mz = float(self.mz_getter.text())
         delta = float(self.delta_getter.text())
-        self.parent.plot_EIC(mz, delta)
+        self.parent.plot_eic_button(mz, delta)
         self.close()
 
 

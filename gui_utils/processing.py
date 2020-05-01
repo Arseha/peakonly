@@ -1,7 +1,9 @@
 import os
 import torch
 from PyQt5 import QtWidgets
-from gui_utils.auxilary_utils import FileListWidget, GetFileWidget
+from functools import partial
+from gui_utils.auxilary_utils import FileListWidget, GetFileWidget, ProgressBarsListItem
+from gui_utils.threading import Worker
 from processing_utils.runner import FilesRunner
 from models.rcnn import RecurrentCNN
 from models.cnn_classifier import Classifier
@@ -47,9 +49,9 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         self.parent = parent
         self.mode = mode
         super().__init__(parent)
-        self._init_ui(files, mode)  # initialize user interface
+        self._init_ui(files)  # initialize user interface
 
-    def _init_ui(self, files, mode):
+    def _init_ui(self, files):
         # files selection
         choose_file_label = QtWidgets.QLabel()
         choose_file_label.setText('Choose files to process:')
@@ -161,6 +163,8 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             segmentator.load_state_dict(torch.load(path2segmentator_weights, map_location=device))
             segmentator.eval()
             models = [classifier, segmentator]
+        else:
+            assert False, self.mode
 
         path2mzml = []
         for file in self.list_of_files.selectedItems():
@@ -169,18 +173,15 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             raise ValueError
 
         runner = FilesRunner(self.mode, models, delta_mz,
-                        required_points, dropped_points,
-                        minimum_peak_points, device)
-        features = runner(path2mzml)
-        self.parent.set_features(features)
+                             required_points, dropped_points,
+                             minimum_peak_points, device)
+
+        pb = ProgressBarsListItem('Data processing:', parent=self.parent.pb_list)
+        self.parent.pb_list.addItem(pb)
+        worker = Worker(runner, path2mzml)
+        worker.signals.progress.connect(pb.setValue)
+        worker.signals.result.connect(self.parent.set_features)
+        worker.signals.finished.connect(partial(self.parent.threads_finisher,
+                                                pb=pb))
+        self.parent.threadpool.start(worker)
         self.close()
-        # except ValueError:
-        #     print('ops')
-        #     pass  # to do: create error window
-
-
-
-
-
-
-

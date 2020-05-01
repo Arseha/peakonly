@@ -2,17 +2,19 @@ import os
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from functools import partial
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from PyQt5 import QtWidgets, QtGui
 from processing_utils.roi import get_ROIs, construct_ROI
 # from processing_utils.run_utils import classifier_prediction
-from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget
+from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget, ProgressBarsListItem
+from gui_utils.threading import Worker
 
 
 class ReAnnotationParameterWindow(QtWidgets.QDialog):
-    def __init__(self, mode='manual', parent=None):
-        self.mode = mode
+    def __init__(self, parent=None):
+        self.mode = 'reannotation'
         self.parent = parent
         super().__init__(parent)
 
@@ -48,11 +50,21 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         self.parent = parent
         super().__init__(parent)
 
+        self.files = files
+        self.description = None
+        self.file_prefix = None
+        self.file_suffix = None
+        self.minimum_peak_points = None
+        self.folder = None
+
+        self._init_ui()
+
+    def _init_ui(self):
         # file and folder selection
         choose_file_label = QtWidgets.QLabel()
         choose_file_label.setText('Choose a file to annotate:')
         self.list_of_files = FileListWidget()
-        for file in files:
+        for file in self.files:
             self.list_of_files.addFile(file)
 
         save_to_label = QtWidgets.QLabel()
@@ -103,10 +115,8 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         self.dropped_points_getter = QtWidgets.QLineEdit(self)
         self.dropped_points_getter.setText('3')
 
-        self.run_button = QtWidgets.QPushButton('Run annotation')
-        self.run_button.clicked.connect(self.start_annotation)
-
-        self.pbar = QtWidgets.QProgressBar(self)
+        run_button = QtWidgets.QPushButton('Run annotation')
+        run_button.clicked.connect(self._run_button)
 
         parameter_layout = QtWidgets.QVBoxLayout()
         parameter_layout.addWidget(instrumental_label)
@@ -124,49 +134,51 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         #     parameter_layout.addWidget(self.peak_points_getter)
         parameter_layout.addWidget(dropped_points_label)
         parameter_layout.addWidget(self.dropped_points_getter)
-        parameter_layout.addWidget(self.run_button)
+        parameter_layout.addWidget(run_button)
 
         # main layout
         main_layout = QtWidgets.QHBoxLayout()
         main_layout.addLayout(file_layout)
         main_layout.addLayout(parameter_layout)
 
-        # main layout + pbar
-        main_pbar_layout = QtWidgets.QVBoxLayout()
-        main_pbar_layout.addLayout(main_layout)
-        main_pbar_layout.addWidget(self.pbar)
+        self.setLayout(main_layout)
 
-        self.setLayout(main_pbar_layout)
-
-    def start_annotation(self):
+    def _run_button(self):
         try:
-            description = self.instrumental_getter.text()
-            file_prefix = self.prefix_getter.text()
-            file_suffix = int(self.suffix_getter.text())
+            self.description = self.instrumental_getter.text()
+            self.file_prefix = self.prefix_getter.text()
+            self.file_suffix = int(self.suffix_getter.text())
             delta_mz = float(self.mz_getter.text())
             required_points = int(self.roi_points_getter.text())
             dropped_points = int(self.dropped_points_getter.text())
-            minimum_peak_points = None
             if self.mode == 'semi-automatic':
-                minimum_peak_points = int(self.peak_points_getter.text())
+                self.minimum_peak_points = int(self.peak_points_getter.text())
 
-            folder = self.folder_widget.get_folder()
-            if self.mode != 'reannotation':
-                path2mzml = None
-                for file in self.list_of_files.selectedItems():
-                    path2mzml = self.list_of_files.file2path[file.text()]
-                if path2mzml is None:
-                    raise ValueError
-                ROIs = get_ROIs(path2mzml, delta_mz, required_points, dropped_points, pbar=self.pbar)
-            else:
-                ROIs = []
-            subwindow = AnnotationMainWindow(ROIs, folder, file_prefix, file_suffix,
-                                             description, self.mode,
-                                             minimum_peak_points, parent=self.parent)
-            subwindow.show()
+            self.folder = self.folder_widget.get_folder()
+            path2mzml = None
+            for file in self.list_of_files.selectedItems():
+                path2mzml = self.list_of_files.file2path[file.text()]
+            if path2mzml is None:
+                raise ValueError
+
+            pb = ProgressBarsListItem('ROI detection:', parent=self.parent.pb_list)
+            self.parent.pb_list.addItem(pb)
+            worker = Worker(get_ROIs, path2mzml, delta_mz, required_points, dropped_points)
+            worker.signals.progress.connect(pb.setValue)
+            worker.signals.result.connect(self._start_annotation)
+            worker.signals.finished.connect(partial(self.parent.threads_finisher,
+                                                    pb=pb))
+            self.parent.threadpool.start(worker)
             self.close()
         except ValueError:
             pass  # to do: create error window
+
+    def _start_annotation(self, rois):
+        self.rois = rois
+        subwindow = AnnotationMainWindow(self.rois, self.folder, self.file_prefix, self.file_suffix,
+                                         self.description, self.mode,
+                                         self.minimum_peak_points, parent=self.parent)
+        subwindow.show()
 
 
 class AnnotationMainWindow(QtWidgets.QDialog):
@@ -634,7 +646,6 @@ class FileContextMenu(QtWidgets.QMenu):
     def close_file(self):
         item = self.parent.get_chosen()
         self.parent.close_file(item)
-
 
     def delete_file(self):
         item = self.parent.get_chosen()

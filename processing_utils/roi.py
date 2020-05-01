@@ -69,7 +69,7 @@ def get_closest(mzmean, mz, pos):
     return res
 
 
-def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=None):
+def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, progress_callback=None):
     '''
     :param path: path to mzml file
     :param delta_mz:
@@ -186,6 +186,8 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, pbar=No
             min_mz = float('inf')
             max_mz = 0
         number += 1
+        if progress_callback is not None and not number % 10:
+            progress_callback.emit(int(number * 100 / len(scans)))
     # add final rois
     for mz, roi in process_ROIs.items():
         if roi.points >= required_points:
