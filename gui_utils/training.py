@@ -71,7 +71,11 @@ class TrainingParameterWindow(QtWidgets.QDialog):
             main_window.show()
             self.close()
         except ValueError:
-            pass  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
 
 class TrainingMainWindow(QtWidgets.QDialog):
@@ -277,7 +281,11 @@ class TrainingMainWidget(QtWidgets.QWidget):
                                                                 self.figure, self.canvas))
             thread.start()
         except ValueError:
-            pass  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
 
 class SaveModelWindow(QtWidgets.QDialog):

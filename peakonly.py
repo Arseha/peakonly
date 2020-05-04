@@ -514,11 +514,17 @@ class EICParameterWindow(QtWidgets.QDialog):
         self.setLayout(layout)
 
     def plot(self):
-        # to do: raise exception
-        mz = float(self.mz_getter.text())
-        delta = float(self.delta_getter.text())
-        self.parent.plot_eic_button(mz, delta)
-        self.close()
+        try:
+            mz = float(self.mz_getter.text())
+            delta = float(self.delta_getter.text())
+            self.parent.plot_eic_button(mz, delta)
+            self.close()
+        except ValueError:
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("'mz' and 'delta' should be float numbers!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
 
 class ClearMainCanvasWindow(QtWidgets.QDialog):

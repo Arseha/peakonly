@@ -141,47 +141,53 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
     def start_processing(self):
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         # to do: device should be customizable parameter
-        # try:
-        delta_mz = float(self.mz_getter.text())
-        required_points = int(self.roi_points_getter.text())
-        dropped_points = int(self.dropped_points_getter.text())
-        minimum_peak_points = int(self.peak_points_getter.text())
-        if self.mode == 'all in one':
-            # to do: save models as pytorch scripts
-            model = RecurrentCNN().to(device)
-            path2weights = self.weights_widget.get_file()
-            model.load_state_dict(torch.load(path2weights, map_location=device))
-            model.eval()
-            models = [model]
-        elif self.mode == 'sequential':
-            classifier = Classifier().to(device)
-            path2classifier_weights = self.weights_classifier_widget.get_file()
-            classifier.load_state_dict(torch.load(path2classifier_weights, map_location=device))
-            classifier.eval()
-            segmentator = Segmentator().to(device)
-            path2segmentator_weights = self.weights_segmentator_widget.get_file()
-            segmentator.load_state_dict(torch.load(path2segmentator_weights, map_location=device))
-            segmentator.eval()
-            models = [classifier, segmentator]
-        else:
-            assert False, self.mode
+        try:
+            delta_mz = float(self.mz_getter.text())
+            required_points = int(self.roi_points_getter.text())
+            dropped_points = int(self.dropped_points_getter.text())
+            minimum_peak_points = int(self.peak_points_getter.text())
+            if self.mode == 'all in one':
+                # to do: save models as pytorch scripts
+                model = RecurrentCNN().to(device)
+                path2weights = self.weights_widget.get_file()
+                model.load_state_dict(torch.load(path2weights, map_location=device))
+                model.eval()
+                models = [model]
+            elif self.mode == 'sequential':
+                classifier = Classifier().to(device)
+                path2classifier_weights = self.weights_classifier_widget.get_file()
+                classifier.load_state_dict(torch.load(path2classifier_weights, map_location=device))
+                classifier.eval()
+                segmentator = Segmentator().to(device)
+                path2segmentator_weights = self.weights_segmentator_widget.get_file()
+                segmentator.load_state_dict(torch.load(path2segmentator_weights, map_location=device))
+                segmentator.eval()
+                models = [classifier, segmentator]
+            else:
+                assert False, self.mode
 
-        path2mzml = []
-        for file in self.list_of_files.selectedItems():
-            path2mzml.append(self.list_of_files.file2path[file.text()])
-        if not path2mzml:
-            raise ValueError
+            path2mzml = []
+            for file in self.list_of_files.selectedItems():
+                path2mzml.append(self.list_of_files.file2path[file.text()])
+            if not path2mzml:
+                raise ValueError
 
-        runner = FilesRunner(self.mode, models, delta_mz,
-                             required_points, dropped_points,
-                             minimum_peak_points, device)
+            runner = FilesRunner(self.mode, models, delta_mz,
+                                 required_points, dropped_points,
+                                 minimum_peak_points, device)
 
-        pb = ProgressBarsListItem('Data processing:', parent=self.parent.pb_list)
-        self.parent.pb_list.addItem(pb)
-        worker = Worker(runner, path2mzml)
-        worker.signals.progress.connect(pb.setValue)
-        worker.signals.result.connect(self.parent.set_features)
-        worker.signals.finished.connect(partial(self.parent.threads_finisher,
-                                                pb=pb))
-        self.parent.threadpool.start(worker)
-        self.close()
+            pb = ProgressBarsListItem('Data processing:', parent=self.parent.pb_list)
+            self.parent.pb_list.addItem(pb)
+            worker = Worker(runner, path2mzml)
+            worker.signals.progress.connect(pb.setValue)
+            worker.signals.result.connect(self.parent.set_features)
+            worker.signals.finished.connect(partial(self.parent.threads_finisher,
+                                                    pb=pb))
+            self.parent.threadpool.start(worker)
+            self.close()
+        except ValueError:
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()

@@ -131,7 +131,11 @@ class EvaluationParameterWindow(QtWidgets.QDialog):
             main_window.show()
             self.close()
         except ValueError:
-            pass  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
 
 class EvaluationMainWindow(QtWidgets.QDialog):
@@ -253,7 +257,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
 
     def create_list_of_features(self):
         list_of_features = FeatureListWidget()
-        list_of_features.itemDoubleClicked.connect(self.feature_click)
+        list_of_features.connectDoubleClick(self.feature_click)
         return list_of_features
 
     def feature_click(self, item):

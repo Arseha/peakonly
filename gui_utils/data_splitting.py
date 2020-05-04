@@ -88,7 +88,13 @@ class SplitterParameterWindow(QtWidgets.QDialog):
             val_size = int(self.val_size_getter.text())
             test_size = int(self.test_size_getter.text())
         except ValueError:
-            return None  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Directory should include any *.json files and \n"
+                        "sizes of test and validation datasets should be integers")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
+            return None
 
         # delete old data and create new folders
         def remove_dir(path):
@@ -156,5 +162,3 @@ class SplitterParameterWindow(QtWidgets.QDialog):
         for k, v in label2file.items():
             for file_name in v:
                 copyfile(file_name, os.path.join(train_dir, os.path.basename(file_name)))
-
-        # to do: add pop-up window

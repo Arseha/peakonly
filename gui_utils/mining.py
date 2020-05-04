@@ -33,15 +33,12 @@ class ReAnnotationParameterWindow(QtWidgets.QDialog):
         self.setLayout(main_layout)
 
     def start_reannotation(self):
-        try:
-            folder = self.folder_widget.get_folder()
-            subwindow = AnnotationMainWindow([], folder, None, None,
-                                             None, self.mode,
-                                             None, parent=self.parent)
-            subwindow.show()
-            self.close()
-        except ValueError:
-            pass  # to do: create error window
+        folder = self.folder_widget.get_folder()
+        subwindow = AnnotationMainWindow([], folder, None, None,
+                                         None, self.mode,
+                                         None, parent=self.parent)
+        subwindow.show()
+        self.close()
 
 
 class AnnotationParameterWindow(QtWidgets.QDialog):
@@ -171,7 +168,11 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
             self.parent.threadpool.start(worker)
             self.close()
         except ValueError:
-            pass  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
     def _start_annotation(self, rois):
         self.rois = rois
@@ -387,7 +388,11 @@ class AnnotationMainWindow(QtWidgets.QDialog):
                 raise ValueError
             self.plot_chosen()
         except ValueError:
-            pass  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText('Choose a ROI to plot from the list!')
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
     # Visualization
     def plot_current(self):
@@ -507,7 +512,12 @@ class AnnotationGetNumberOfPeaksNovel(QtWidgets.QDialog):
         try:
             number_of_peaks = int(self.n_of_peaks_getter.text())
         except ValueError:
-            return  # to do: create error window
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("'Number of peaks' should be an integer value!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
+            return None
 
         subwindow = AnnotationGetBordersWindowNovel(number_of_peaks, self.parent)
         subwindow.show()
@@ -581,12 +591,19 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
             borders = []
             for pl in self.peak_layouts:
                 if pl.begin_getter.text() and pl.end_getter.text():
-                    begin = int(pl.begin_getter.text())
-                    end = int(pl.end_getter.text())
-                    borders.append((begin, end))
+                    begin = pl.begin_getter.text()
+                    end = pl.end_getter.text()
+                    if begin and end:
+                        begin = int(begin)
+                        end = int(end)
+                        borders.append((begin, end))
             self.parent.plot_preview(borders)
         except ValueError:
-            pass  # to do: create error window:
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("'begin' and 'end' of each peak should be integer numbers!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
     def save(self):
         try:
@@ -604,7 +621,11 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
                 end = int(pl.end_getter.text())
                 borders.append((begin, end))
         except ValueError:
-            return  # to do: create error window:
+            # popup window with exception
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText("Check parameters. Something is wrong!")
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
         self.parent.plotted_roi.save_annotated(self.parent.plotted_path, code, label, number_of_peaks,
                                                peaks_labels, borders, description=self.parent.current_description)
