@@ -45,11 +45,11 @@ class TrainingParameterWindow(QtWidgets.QDialog):
 
         train_folder_label = QtWidgets.QLabel()
         train_folder_label.setText('Choose a folder with train data:')
-        self.train_folder_getter = GetFolderWidget()
+        self.train_folder_getter = GetFolderWidget(os.path.join(os.getcwd(), 'data', 'train'), self)
 
         val_folder_label = QtWidgets.QLabel()
         val_folder_label.setText('Choose a folder with validation data:')
-        self.val_folder_getter = GetFolderWidget()
+        self.val_folder_getter = GetFolderWidget(os.path.join(os.getcwd(), 'data', 'val'), self)
 
         continue_button = QtWidgets.QPushButton('Continue')
         continue_button.clicked.connect(self._continue)
@@ -296,7 +296,7 @@ class SaveModelWindow(QtWidgets.QDialog):
 
         folder_label = QtWidgets.QLabel()
         folder_label.setText('Choose a folder where to save:')
-        self.folder_getter = GetFolderWidget()
+        self.folder_getter = GetFolderWidget(os.path.join(os.getcwd(), 'data', 'weights'), self)
 
         name_label = QtWidgets.QLabel()
         name_label.setText('Set a name of file: ')

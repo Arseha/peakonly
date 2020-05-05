@@ -8,12 +8,13 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 from PyQt5 import QtWidgets, QtGui
 from processing_utils.roi import get_ROIs, construct_ROI
 # from processing_utils.run_utils import classifier_prediction
+from gui_utils.abstract_main_window import AbtractMainWindow
 from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget, ProgressBarsListItem
 from gui_utils.threading import Worker
 
 
 class ReAnnotationParameterWindow(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent: AbtractMainWindow):
         self.mode = 'reannotation'
         self.parent = parent
         super().__init__(parent)
@@ -42,7 +43,7 @@ class ReAnnotationParameterWindow(QtWidgets.QDialog):
 
 
 class AnnotationParameterWindow(QtWidgets.QDialog):
-    def __init__(self, files, mode='manual', parent=None):
+    def __init__(self, files, mode, parent: AbtractMainWindow):
         self.mode = mode
         self.parent = parent
         super().__init__(parent)
@@ -158,14 +159,10 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
             if path2mzml is None:
                 raise ValueError
 
-            pb = ProgressBarsListItem('ROI detection:', parent=self.parent.pb_list)
-            self.parent.pb_list.addItem(pb)
             worker = Worker(get_ROIs, path2mzml, delta_mz, required_points, dropped_points)
-            worker.signals.progress.connect(pb.setValue)
             worker.signals.result.connect(self._start_annotation)
-            worker.signals.finished.connect(partial(self.parent.threads_finisher,
-                                                    pb=pb))
-            self.parent.threadpool.start(worker)
+            self.parent.run_thread('ROI detection:', worker)
+
             self.close()
         except ValueError:
             # popup window with exception

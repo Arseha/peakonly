@@ -51,7 +51,7 @@ class EvaluationParameterWindow(QtWidgets.QDialog):
 
         test_folder_label = QtWidgets.QLabel()
         test_folder_label.setText('Choose a folder with test data:')
-        self.test_folder_getter = GetFolderWidget()
+        self.test_folder_getter = GetFolderWidget(os.path.join(os.getcwd(), 'data', 'test'), self)
 
         if mode == 'all in one':
             model_weights_label = QtWidgets.QLabel()
@@ -192,7 +192,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         tp_layout.addWidget(tp_label)
         self.tp_features = self.create_list_of_features()
         tp_layout.addWidget(self.tp_features)
-        tp_next_button = QtWidgets.QPushButton('next')
+        tp_next_button = QtWidgets.QPushButton('Next')
         tp_next_button.clicked.connect(partial(self.next_feature, self.tp_features))
         tp_layout.addWidget(tp_next_button)
         lists_layout.addLayout(tp_layout)
@@ -203,7 +203,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         tn_layout.addWidget(tn_label)
         self.tn_features = self.create_list_of_features()
         tn_layout.addWidget(self.tn_features)
-        tn_next_button = QtWidgets.QPushButton('next')
+        tn_next_button = QtWidgets.QPushButton('Next')
         tn_next_button.clicked.connect(partial(self.next_feature, self.tn_features))
         tn_layout.addWidget(tn_next_button)
         lists_layout.addLayout(tn_layout)
@@ -214,7 +214,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         fp_layout.addWidget(fp_label)
         self.fp_features = self.create_list_of_features()
         fp_layout.addWidget(self.fp_features)
-        fp_next_button = QtWidgets.QPushButton('next')
+        fp_next_button = QtWidgets.QPushButton('Next')
         fp_next_button.clicked.connect(partial(self.next_feature, self.fp_features))
         fp_layout.addWidget(fp_next_button)
         lists_layout.addLayout(fp_layout)
@@ -225,7 +225,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         fn_layout.addWidget(fn_label)
         self.fn_features = self.create_list_of_features()
         fn_layout.addWidget(self.fn_features)
-        fn_next_button = QtWidgets.QPushButton('next')
+        fn_next_button = QtWidgets.QPushButton('Next')
         fn_next_button.clicked.connect(partial(self.next_feature, self.fn_features))
         fn_layout.addWidget(fn_next_button)
         lists_layout.addLayout(fn_layout)
@@ -234,8 +234,8 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         right_half_layout = QtWidgets.QVBoxLayout()
         right_half_layout.addLayout(lists_layout)
 
-        statistics_button = QtWidgets.QPushButton('get more statistics')
-        statistics_button.clicked.connect(self.get_statistics)
+        statistics_button = QtWidgets.QPushButton('Plot confusion matrix')
+        statistics_button.clicked.connect(self.plot_confusion_matrix)
         right_half_layout.addWidget(statistics_button)
 
         # Main canvas and toolbar
@@ -327,7 +327,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         feature.plot(self.ax, shifted=False, show_legend=True)
         self.canvas.draw()  # refresh canvas
 
-    def get_statistics(self):
+    def plot_confusion_matrix(self):
         # to do: create a window with stats
         tp_features = self.tp_features.get_all()
         tn_features = self.tn_features.get_all()
@@ -335,7 +335,6 @@ class EvaluationMainWindow(QtWidgets.QDialog):
         fn_features = self.fn_features.get_all()
         subwindow = EvaluationStatisticsWindow(tp_features, tn_features, fp_features, fn_features, self)
         subwindow.show()
-        pass
 
 
 class EvaluationStatisticsWindow(QtWidgets.QDialog):

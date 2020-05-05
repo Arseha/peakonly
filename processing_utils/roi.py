@@ -212,3 +212,48 @@ def get_ROIs(path, delta_mz=0.005, required_points=15, dropped_points=3, progres
         roi.scan = (roi.scan[0] - dropped_points, roi.scan[1] + dropped_points)
         assert roi.scan[1] - roi.scan[0] == len(roi.i) - 1
     return ROIs
+
+
+def construct_tic(path, label, progress_callback=None):
+    run = pymzml.run.Reader(path)
+    t_measure = None
+    time = []
+    tic = []
+    spectrum_count = run.get_spectrum_count()
+    for i, scan in enumerate(run):
+        if scan.ms_level == 1:
+            tic.append(scan.TIC)  # get total ion of scan
+            t, measure = scan.scan_time  # get scan time
+            time.append(t)
+            if not t_measure:
+                t_measure = measure
+            if progress_callback is not None and not i % 10:
+                progress_callback.emit(int(i * 100 / spectrum_count))
+    if t_measure == 'second':
+        time = np.array(time) / 60
+    return {'x': time, 'y': tic, 'label': label}
+
+
+def construct_eic(path, label, mz, delta, progress_callback=None):
+    run = pymzml.run.Reader(path)
+    t_measure = None
+    time = []
+    eic = []
+    spectrum_count = run.get_spectrum_count()
+    for i, scan in enumerate(run):
+        if scan.ms_level == 1:
+            t, measure = scan.scan_time  # get scan time
+            time.append(t)
+            pos = np.searchsorted(scan.mz, mz)
+            closest = get_closest(scan.mz, mz, pos)
+            if abs(scan.mz[closest] - mz) < delta:
+                eic.append(scan.i[closest])
+            else:
+                eic.append(0)
+            if not t_measure:
+                t_measure = measure
+            if progress_callback is not None and not i % 10:
+                progress_callback.emit(int(i * 100 / spectrum_count))
+    if t_measure == 'second':
+        time = np.array(time) / 60
+    return {'x': time, 'y': eic, 'label': label}

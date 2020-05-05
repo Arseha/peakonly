@@ -127,15 +127,17 @@ class ProgressBarsList(QtWidgets.QWidget):
 
 
 class GetFolderWidget(QtWidgets.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, default_directory='', parent=None):
         super().__init__(parent)
 
         button = QtWidgets.QToolButton()
         button.setText('...')
         button.clicked.connect(self.set_folder)
 
+        if not default_directory:
+            default_directory = os.getcwd()
         self.lineEdit = QtWidgets.QToolButton()
-        self.lineEdit.setText(os.getcwd())
+        self.lineEdit.setText(default_directory)
 
         layout = QtWidgets.QHBoxLayout()
         layout.addWidget(self.lineEdit, 85)

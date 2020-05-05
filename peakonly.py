@@ -1,18 +1,15 @@
 import os
 import sys
 import urllib.request
-import pymzml
 import zipfile
-import matplotlib.pyplot as plt
-import numpy as np
 from functools import partial
+import matplotlib.pyplot as plt
 from PyQt5 import QtWidgets, QtGui, QtCore
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from processing_utils.roi import get_closest
 from processing_utils.postprocess import ResultTable
-from gui_utils.auxilary_utils import FileListWidget, FeatureListWidget, ProgressBarsList, ProgressBarsListItem
+from gui_utils.abstract_main_window import AbtractMainWindow
+from gui_utils.auxilary_utils import ProgressBarsListItem
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
+from gui_utils.visualization import EICParameterWindow, VisualizationWindow
 from gui_utils.processing import ProcessingParameterWindow
 from gui_utils.training import TrainingParameterWindow
 from gui_utils.evaluation import EvaluationParameterWindow
@@ -20,41 +17,138 @@ from gui_utils.data_splitting import SplitterParameterWindow
 from gui_utils.threading import Worker
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(AbtractMainWindow):
     # Initialization
     def __init__(self):
         super().__init__()
-        self.threadpool = QtCore.QThreadPool()
         # create menu
-        self.create_menu()
+        self._create_menu()
 
-        # create list of opened *.mzML file
-        self.list_of_files = self.create_list_of_files()
+        # tune list of files
+        self._list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self._list_of_files.connectRightClick(partial(FileContextMenu, self))
 
-        # create list of founded features
-        self.list_of_features = self.create_list_of_features()
-        self.feature_parameters = None  # to do: add possibility process several batches
+        # tune list of features
+        self._list_of_features.connectDoubleClick(self.plot_feature)
+        self._list_of_features.connectRightClick(partial(FeatureContextMenu, self))
 
-        # Main canvas and toolbar
-        self.figure = plt.figure()
-        self.ax = self.figure.add_subplot(111)  # plot here
-        self.label2line = dict()  # a label (aka line name) to plotted line
-        self.canvas = FigureCanvas(self.figure)
-        self.toolbar = NavigationToolbar(self.canvas, self)
+        self._init_ui()
 
+        # Set geometry and title
+        self.setGeometry(300, 300, 900, 600)
+        self.setWindowTitle('peakonly')
+        self.show()
+
+    def _create_menu(self):
+        menu = self.menuBar()
+
+        # file submenu
+        file = menu.addMenu('File')
+
+        file_import = QtWidgets.QMenu('Open', self)
+        file_import_mzML = QtWidgets.QAction('Open *.mzML', self)
+        file_import_mzML.triggered.connect(self._open_files)
+        file_import.addAction(file_import_mzML)
+
+        file_export = QtWidgets.QMenu('Save', self)
+        file_export_features_csv = QtWidgets.QAction('Save a *.csv file with detected features', self)
+        file_export_features_csv.triggered.connect(partial(self._export_features, 'csv'))
+        file_export.addAction(file_export_features_csv)
+        file_export_features_png = QtWidgets.QAction('Save features as *.png files', self)
+        file_export_features_png.triggered.connect(partial(self._export_features, 'png'))
+        file_export.addAction(file_export_features_png)
+
+        file.addMenu(file_import)
+        file.addMenu(file_export)
+
+        # data submenu
+        data = menu.addMenu('Data')
+
+        data_processing = QtWidgets.QAction('Feature detection', self)
+        data_processing.triggered.connect(partial(self._data_processing, 'simple'))
+
+        data_download = QtWidgets.QMenu('Download', self)
+        data_download_models = QtWidgets.QAction('Download trained models', self)
+        data_download_models.triggered.connect(partial(self._download_button, mode='models'))
+        data_download.addAction(data_download_models)
+        data_download_annotated_data = QtWidgets.QAction('Download annotated data', self)
+        data_download_annotated_data.triggered.connect(partial(self._download_button, mode='data'))
+        data_download.addAction(data_download_annotated_data)
+        data_download_example = QtWidgets.QAction('Download *.mzML example', self)
+        data_download_example.triggered.connect(partial(self._download_button, mode='example'))
+        data_download.addAction(data_download_example)
+
+        data_visualization = QtWidgets.QAction('Visualization', self)
+        data_visualization.triggered.connect(self._open_visualization_window)  # to do: create visualization
+
+        data.addAction(data_processing)
+        data.addMenu(data_download)
+        data.addAction(data_visualization)
+
+        # advanced submenu
+        advanced = menu.addMenu('Advanced')
+
+        advanced_data_processing = QtWidgets.QMenu('Advanced feature detection', self)
+        advanced_data_processing_all = QtWidgets.QAction('RecurrentCNN (testing)', self)
+        advanced_data_processing_all.triggered.connect(partial(self._data_processing, 'all in one'))
+        advanced_data_processing.addAction(advanced_data_processing_all)
+        advanced_data_processing_sequential = QtWidgets.QAction('Two subsequent CNNs', self)
+        advanced_data_processing_sequential.triggered.connect(partial(self._data_processing, 'sequential'))
+        advanced_data_processing.addAction(advanced_data_processing_sequential)
+
+        advanced_data_mining = QtWidgets.QMenu('Data mining', self)
+        advanced_data_mining_manual = QtWidgets.QAction('Manual annotation', self)
+        advanced_data_mining_manual.triggered.connect(partial(self._data_mining, mode='manual'))
+        advanced_data_mining.addAction(advanced_data_mining_manual)
+        advanced_data_mining_reannotation = QtWidgets.QAction('Reannotation', self)
+        advanced_data_mining_reannotation.triggered.connect(partial(self._data_mining, mode='reannotation'))
+        advanced_data_mining.addAction(advanced_data_mining_reannotation)
+        advanced_data_mining_split = QtWidgets.QAction('Split data', self)
+        advanced_data_mining_split.triggered.connect(self._split_data)
+
+        advanced_model = QtWidgets.QMenu('Model', self)
+        advanced_model_training = QtWidgets.QMenu('Training', self)  # training
+        advanced_model_training_all = QtWidgets.QAction('RecurrentCNN (testing)', self)
+        advanced_model_training_all.triggered.connect(partial(self._model_training, 'all in one'))
+        advanced_model_training.addAction(advanced_model_training_all)
+        advanced_model_training_sequential = QtWidgets.QAction('Two subsequent CNNs', self)
+        advanced_model_training_sequential.triggered.connect(partial(self._model_training, 'sequential'))
+        advanced_model_training.addAction(advanced_model_training_sequential)
+        advanced_model_fine_tuning = QtWidgets.QMenu('Fine-tuning (in developing)', self)  # fine-tuning
+        advanced_model_fine_tuning_all = QtWidgets.QAction('RecurrentCNN (testing)', self)
+        advanced_model_fine_tuning_all.triggered.connect(partial(self._model_fine_tuning, 'all in one'))
+        advanced_model_fine_tuning.addAction(advanced_model_fine_tuning_all)
+        advanced_model_fine_tuning_sequential = QtWidgets.QAction('Two subsequent CNNs', self)
+        advanced_model_fine_tuning_sequential.triggered.connect(partial(self._model_fine_tuning, 'sequential'))
+        advanced_model_fine_tuning.addAction(advanced_model_fine_tuning_sequential)
+        advanced_model_evaluation = QtWidgets.QMenu('Evaluation', self)  # evaluation
+        advanced_model_evaluation_all = QtWidgets.QAction('RecurrentCNN (testing)', self)
+        advanced_model_evaluation_all.triggered.connect(partial(self._model_evaluation, 'all in one'))
+        advanced_model_evaluation.addAction(advanced_model_evaluation_all)
+        advanced_model_evaluation_sequential = QtWidgets.QAction('Two subsequent CNNs', self)
+        advanced_model_evaluation_sequential.triggered.connect(partial(self._model_evaluation, 'sequential'))
+        advanced_model_evaluation.addAction(advanced_model_evaluation_sequential)
+        advanced_model.addMenu(advanced_model_training)  # add to menu
+        advanced_model.addMenu(advanced_model_fine_tuning)
+        advanced_model.addMenu(advanced_model_evaluation)
+
+        advanced.addMenu(advanced_data_processing)
+        advanced.addMenu(advanced_data_mining)
+        advanced.addMenu(advanced_model)
+
+    def _init_ui(self):
         # Layouts
         canvas_layout = QtWidgets.QVBoxLayout()
-        canvas_layout.addWidget(self.toolbar)
-        canvas_layout.addWidget(self.canvas)
+        canvas_layout.addWidget(self._toolbar)
+        canvas_layout.addWidget(self._canvas)
 
         canvas_files_features_layout = QtWidgets.QHBoxLayout()
-        canvas_files_features_layout.addWidget(self.list_of_files, 15)
+        canvas_files_features_layout.addWidget(self._list_of_files, 15)
         canvas_files_features_layout.addLayout(canvas_layout, 70)
-        canvas_files_features_layout.addWidget(self.list_of_features, 15)
+        canvas_files_features_layout.addWidget(self._list_of_features, 15)
 
-        self.pb_list = ProgressBarsList(self)
         scrollable_pb_list = QtWidgets.QScrollArea()
-        scrollable_pb_list.setWidget(self.pb_list)
+        scrollable_pb_list.setWidget(self._pb_list)
         scrollable_pb_list.setWidgetResizable(True)
 
         main_layout = QtWidgets.QVBoxLayout()
@@ -66,191 +160,47 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(widget)
 
-        # Set geometry and title
-        self.setGeometry(300, 300, 900, 600)
-        self.setWindowTitle('peakonly')
-        self.show()
-
-    def create_menu(self):
-        menu = self.menuBar()
-
-        # file submenu
-        file = menu.addMenu('File')
-
-        file_import = QtWidgets.QMenu('Import', self)
-        file_import_mzML = QtWidgets.QAction('Import *.mzML', self)
-        file_import_mzML.triggered.connect(self.open_files)
-        file_import.addAction(file_import_mzML)
-
-        file_export = QtWidgets.QMenu('Export', self)
-        file_export_features = QtWidgets.QAction('Export features as *.csv file', self)
-        file_export_features.triggered.connect(self.export_features)
-        file_export.addAction(file_export_features)
-
-        file.addMenu(file_import)
-        file.addMenu(file_export)
-
-        # data submenu
-        data = menu.addMenu('Data')
-
-        data_processing = QtWidgets.QMenu('Processing', self)
-        data_processing_all = QtWidgets.QAction("'All-in-one'", self)
-        data_processing_all.triggered.connect(partial(self.data_processing, 'all in one'))
-        data_processing.addAction(data_processing_all)
-        data_processing_sequential = QtWidgets.QAction('Sequential', self)
-        data_processing_sequential.triggered.connect(partial(self.data_processing, 'sequential'))
-        data_processing.addAction(data_processing_sequential)
-
-        data_mining = QtWidgets.QMenu('Mining', self)
-        data_mining_novel_annotation = QtWidgets.QAction('Manual annotation', self)
-        data_mining_novel_annotation.triggered.connect(partial(self.create_dataset, mode='manual'))
-        data_mining.addAction(data_mining_novel_annotation)
-        data_mining_novel_reannotation = QtWidgets.QAction('Reannotation', self)
-        data_mining_novel_reannotation.triggered.connect(partial(self.create_dataset, mode='reannotation'))
-        data_mining.addAction(data_mining_novel_reannotation)
-
-        data_download = QtWidgets.QMenu('Download', self)
-        data_download_models = QtWidgets.QAction('Download trained models', self)
-        data_download_models.triggered.connect(partial(self.download_button, mode='models'))
-        data_download.addAction(data_download_models)
-        data_download_annotated_data = QtWidgets.QAction('Download annotated data', self)
-        data_download_annotated_data.triggered.connect(partial(self.download_button, mode='data'))
-        data_download.addAction(data_download_annotated_data)
-        data_download_example = QtWidgets.QAction('Download *.mzML example', self)
-        data_download_example.triggered.connect(partial(self.download_button, mode='example'))
-        data_download.addAction(data_download_example)
-
-        data_split = QtWidgets.QAction('Split data', self)
-        data_split.triggered.connect(self.split_data)
-
-        data.addMenu(data_processing)
-        data.addMenu(data_mining)
-        data.addMenu(data_download)
-        data.addAction(data_split)
-
-        # Processing model submenu
-        model = menu.addMenu('Model')
-
-        model_training = QtWidgets.QMenu('Training', self)
-        model_training_all = QtWidgets.QAction("'All-in-one'", self)
-        model_training_all.triggered.connect(partial(self.model_training, 'all in one'))
-        model_training.addAction(model_training_all)
-        model_training_sequential = QtWidgets.QAction('Sequential', self)
-        model_training_sequential.triggered.connect(partial(self.model_training, 'sequential'))
-        model_training.addAction(model_training_sequential)
-
-        model_fine_tuning = QtWidgets.QMenu('Fine-tuning', self)
-        model_fine_tuning_all = QtWidgets.QAction("'All-in-one'", self)
-        model_fine_tuning_all.triggered.connect(partial(self.model_fine_tuning, 'all in one'))
-        model_fine_tuning.addAction(model_fine_tuning_all)
-        model_fine_tuning_sequential = QtWidgets.QAction('Sequential', self)
-        model_fine_tuning_sequential.triggered.connect(partial(self.model_fine_tuning, 'sequential'))
-        model_fine_tuning.addAction(model_fine_tuning_sequential)
-
-        model_evaluation = QtWidgets.QMenu('Evaluation', self)
-        model_evaluation_all = QtWidgets.QAction("'All-in-one'", self)
-        model_evaluation_all.triggered.connect(partial(self.model_evaluation, 'all in one'))
-        model_evaluation.addAction(model_evaluation_all)
-        model_evaluation_sequential = QtWidgets.QAction('Sequential', self)
-        model_evaluation_sequential.triggered.connect(partial(self.model_evaluation, 'sequential'))
-        model_evaluation.addAction(model_evaluation_sequential)
-
-        model.addMenu(model_training)
-        model.addMenu(model_fine_tuning)
-        model.addMenu(model_evaluation)
-
-
-        # visualization submenu
-        visual = menu.addMenu('Visualization')
-
-        visual_tic = QtWidgets.QAction('Plot TIC', self)
-        visual_tic.triggered.connect(self.plot_tic_button)
-
-        visual_eic = QtWidgets.QAction('Plot EIC', self)
-        visual_eic.triggered.connect(self.get_eic_parameters)
-
-        visual_clear = QtWidgets.QAction('Clear', self)
-        visual_clear.triggered.connect(self.open_clear_window)
-
-        visual.addAction(visual_tic)
-        visual.addAction(visual_eic)
-        visual.addAction(visual_clear)
-
-    def open_clear_window(self):
-        subwindow = ClearMainCanvasWindow(self)
-        subwindow.show()
-
-    def create_list_of_files(self):
-        # List of opened files
-        list_of_files = FileListWidget()
-        list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        list_of_files.connectRightClick(partial(FileContextMenu, self))
-        return list_of_files
-
-    def create_list_of_features(self):
-        list_of_features = FeatureListWidget()
-        list_of_features.connectDoubleClick(self.feature_click)
-        list_of_features.connectRightClick(partial(FeatureContextMenu, self))
-        return list_of_features
-
     # Auxiliary methods
-    def feature_click(self, item):
-        feature = self.list_of_features.get_feature(item)
-        self.plot_feature(feature)
+    def _open_files(self):
+        files_names = QtWidgets.QFileDialog.getOpenFileNames(None, '', '', 'mzML (*.mzML)')[0]
+        for name in files_names:
+            self._list_of_files.addFile(name)
 
-    def open_files(self):
-        filter = 'mzML (*.mzML)'
-        filenames = QtWidgets.QFileDialog.getOpenFileNames(None, None, None, filter)[0]
-        for name in filenames:
-            self.list_of_files.addFile(name)
+    def _export_features(self, mode):
+        if self._list_of_features.count() > 0:
+            if mode == 'csv':
+                # to do: features should be QTreeWidget (root should keep basic information: files and parameters)
+                files = self._feature_parameters['files']
+                table = ResultTable(files, self._list_of_features.features)
+                table.fill_zeros(self._feature_parameters['delta mz'])
+                file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Export features', '',
+                                                                     'csv (*.csv)')
+                if file_name:
+                    table.to_csv(file_name)
+            elif mode == 'png':
+                directory = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose a directory where to save'))
 
-    def set_features(self, obj):
-        features, parameters = obj
-        self.list_of_features.clear()
-        for feature in features:
-            self.list_of_features.add_feature(feature)
-        self.feature_parameters = parameters
+                worker = Worker(self._save_features_png, features=self._list_of_features.features, directory=directory)
+                self.run_thread('Saving features as *.png files:', worker)
+            else:
+                assert False, mode
+        else:
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText('You should firstly detect features in *mzML files:\n'
+                        'Data -> Feature detection')
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
 
-    def export_features(self):
-        if self.list_of_features.count() > 0:
-            # to do: features should be QTreeWidget (root should keep basic information: files and parameters)
-            files = self.feature_parameters['files']
-            table = ResultTable(files, self.list_of_features.features)
-            table.fill_zeros(self.feature_parameters['delta mz'])
-            file_name, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Export features', '',
-                                                                 'csv (*.csv)')
-            table.to_csv(file_name)
-
-    def get_eic_parameters(self):
+    def _get_eic_parameters(self):
         subwindow = EICParameterWindow(self)
         subwindow.show()
 
     @staticmethod
-    def show_downloading_progress(number_of_block, size_of_block, total_size, pb):
+    def _show_downloading_progress(number_of_block, size_of_block, total_size, pb):
         pb.setValue(int(number_of_block * size_of_block * 100 / total_size))
 
-    def threads_finisher(self, text=None, icon=None, pb=None):
-        if pb is not None:
-            self.pb_list.removeItem(pb)
-            pb.setParent(None)
-        if text is not None:
-            msg = QtWidgets.QMessageBox(self)
-            msg.setText(text)
-            msg.setIcon(icon)
-            msg.exec_()
-
-    def plotter(self, obj):
-        if not self.label2line:  # in case if 'feature' was plotted
-            self.figure.clear()
-            self.ax = self.figure.add_subplot(111)
-
-        line = self.ax.plot(obj['x'], obj['y'], label=obj['label'])
-        self.label2line[obj['label']] = line[0]  # save line
-        self.ax.legend(loc='best')
-        self.canvas.draw()
-
     # Buttons, which creates threads
-    def download_button(self, mode):
+    def _download_button(self, mode):
         if mode == 'models':
             text = 'Downloading trained models:'
         elif mode == 'data':
@@ -260,51 +210,19 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             assert False, mode
 
-        pb = ProgressBarsListItem(text, parent=self.pb_list)
-        self.pb_list.addItem(pb)
-        worker = Worker(self.download, download=True, mode=mode)
-        worker.signals.download_progress.connect(partial(self.show_downloading_progress, pb=pb))
-        worker.signals.finished.connect(partial(self.threads_finisher,
+        pb = ProgressBarsListItem(text, parent=self._pb_list)
+        self._pb_list.addItem(pb)
+        worker = Worker(self._download, download=True, mode=mode)
+        worker.signals.download_progress.connect(partial(self._show_downloading_progress, pb=pb))
+        worker.signals.finished.connect(partial(self._threads_finisher,
                                                 text='Download is successful',
                                                 icon=QtWidgets.QMessageBox.Information,
                                                 pb=pb))
-        self.threadpool.start(worker)
-
-    def plot_tic_button(self):
-        for file in self.list_of_files.selectedItems():
-            file = file.text()
-            label = f'TIC: {file[:file.rfind(".")]}'
-            if label not in self.label2line:
-                path = self.list_of_files.file2path[file]
-
-                pb = ProgressBarsListItem(f'Plotting TIC: {file}', parent=self.pb_list)
-                self.pb_list.addItem(pb)
-                worker = Worker(self.construct_tic, path, label)
-                worker.signals.progress.connect(pb.setValue)
-                worker.signals.result.connect(self.plotter)
-                worker.signals.finished.connect(partial(self.threads_finisher, pb=pb))
-
-                self.threadpool.start(worker)
-
-    def plot_eic_button(self, mz, delta):
-        for file in self.list_of_files.selectedItems():
-            file = file.text()
-            label = f'EIC {mz:.4f} ± {delta:.4f}: {file[:file.rfind(".")]}'
-            if label not in self.label2line:
-                path = self.list_of_files.file2path[file]
-
-                pb = ProgressBarsListItem(f'Plotting EIC (mz={mz:.4f}): {file}', parent=self.pb_list)
-                self.pb_list.addItem(pb)
-                worker = Worker(self.construct_eic, path, label, mz, delta)
-                worker.signals.progress.connect(pb.setValue)
-                worker.signals.result.connect(self.plotter)
-                worker.signals.finished.connect(partial(self.threads_finisher, pb=pb))
-
-                self.threadpool.start(worker)
+        self._thread_pool.start(worker)
 
     # Main functionality
     @staticmethod
-    def download(mode, progress_callback):
+    def _download(mode, progress_callback):
         """
         Download necessary data
         Parameters
@@ -347,235 +265,126 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             assert False, mode
 
-    def split_data(self):
+    @staticmethod
+    def _save_features_png(features, directory, progress_callback):
+        plt.switch_backend('Agg')  # to do: check if it is alright
+        fig = plt.figure()
+        for i, feature in enumerate(features):
+            ax = fig.add_subplot(111)
+            feature.plot(ax, shifted=True)
+            fig.savefig(os.path.join(directory, f'{i}.png'))
+            fig.clear()
+            progress_callback.emit(int(i * 100 / len(features)))
+        plt.close(fig)
+
+    def _split_data(self):
         subwindow = SplitterParameterWindow(self)
         subwindow.show()
 
-    def create_dataset(self, mode='manual'):
+    def _data_mining(self, mode='manual'):
         if mode != 'reannotation':
-            files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
-                     for i in range(self.list_of_files.count())]
+            files = [self._list_of_files.file2path[self._list_of_files.item(i).text()]
+                     for i in range(self._list_of_files.count())]
             subwindow = AnnotationParameterWindow(files, mode, self)
             subwindow.show()
         else:
             subwindow = ReAnnotationParameterWindow(self)
             subwindow.show()
 
-    def data_processing(self, mode):
-        files = [self.list_of_files.file2path[self.list_of_files.item(i).text()]
-                 for i in range(self.list_of_files.count())]
-        subwindow = ProcessingParameterWindow(files, mode, self)
+    def _data_processing(self, mode):
+        if mode == 'simple' and (not os.path.isfile(os.path.join('data', 'weights', 'Classifier.pt'))
+                                 or not os.path.isfile(os.path.join('data', 'weights', 'Segmentator.pt'))):
+            msg = QtWidgets.QMessageBox(self)
+            msg.setText('You should download models in order to process your data:\n'
+                        'Data -> Download -> Download trained models')
+            msg.setIcon(QtWidgets.QMessageBox.Warning)
+            msg.exec_()
+        else:
+            files = [self._list_of_files.file2path[self._list_of_files.item(i).text()]
+                     for i in range(self._list_of_files.count())]
+            if not files:
+                msg = QtWidgets.QMessageBox(self)
+                msg.setText('You should firstly open *.mzML files:\n'
+                            'File -> Open -> Open *.mzML')
+                msg.setIcon(QtWidgets.QMessageBox.Warning)
+                msg.exec_()
+            else:
+                subwindow = ProcessingParameterWindow(files, mode, self)
+                subwindow.show()
+
+    def _open_visualization_window(self):
+        files = [self._list_of_files.file2path[self._list_of_files.item(i).text()]
+                 for i in range(self._list_of_files.count())]
+        subwindow = VisualizationWindow(files, self)
         subwindow.show()
 
     # Model functionality
-    def model_training(self, mode):
+    def _model_training(self, mode):
         subwindow = TrainingParameterWindow(mode, self)
         subwindow.show()
 
-    def model_fine_tuning(self, mode):
+    def _model_fine_tuning(self, mode):
         pass
 
-    def model_evaluation(self, mode):
+    def _model_evaluation(self, mode):
         subwindow = EvaluationParameterWindow(mode, self)
         subwindow.show()
-
-    # Visualization
-    @staticmethod
-    def construct_tic(path, label, progress_callback=None):
-        run = pymzml.run.Reader(path)
-        t_measure = None
-        time = []
-        TIC = []
-        spectrum_count = run.get_spectrum_count()
-        for i, scan in enumerate(run):
-            if scan.ms_level == 1:
-                TIC.append(scan.TIC)  # get total ion of scan
-                t, measure = scan.scan_time  # get scan time
-                time.append(t)
-                if not t_measure:
-                    t_measure = measure
-                if progress_callback is not None and not i % 10:
-                    progress_callback.emit(int(i * 100 / spectrum_count))
-        if t_measure == 'second':
-            time = np.array(time) / 60
-        return {'x': time, 'y': TIC, 'label': label}
-
-    @staticmethod
-    def construct_eic(path, label, mz, delta, progress_callback=None):
-        run = pymzml.run.Reader(path)
-        t_measure = None
-        time = []
-        EIC = []
-        spectrum_count = run.get_spectrum_count()
-        for i, scan in enumerate(run):
-            if scan.ms_level == 1:
-                t, measure = scan.scan_time  # get scan time
-                time.append(t)
-                pos = np.searchsorted(scan.mz, mz)
-                closest = get_closest(scan.mz, mz, pos)
-                if abs(scan.mz[closest] - mz) < delta:
-                    EIC.append(scan.i[closest])
-                else:
-                    EIC.append(0)
-                if not t_measure:
-                    t_measure = measure
-                if progress_callback is not None and not i % 10:
-                    progress_callback.emit(int(i * 100 / spectrum_count))
-        return {'x': time, 'y': EIC, 'label': label}
-
-    def plot_feature(self, feature, shifted=True):
-        self.label2line = dict()  # empty plotted TIC and EIC
-        self.figure.clear()
-        self.ax = self.figure.add_subplot(111)
-        feature.plot(self.ax, shifted=shifted)
-        self.canvas.draw()  # refresh canvas
 
 
 class FileContextMenu(QtWidgets.QMenu):
     def __init__(self, parent: MainWindow):
+        self.parent = parent
         super().__init__(parent)
 
-        self.parent = parent
-        self.menu = QtWidgets.QMenu(parent)
+        menu = QtWidgets.QMenu(parent)
 
-        self.tic = QtWidgets.QAction('Plot TIC', parent)
-        self.eic = QtWidgets.QAction('Plot EIC', parent)
-        self.close = QtWidgets.QAction('Close', parent)
+        tic = QtWidgets.QAction('Plot TIC', parent)
+        eic = QtWidgets.QAction('Plot EIC', parent)
+        close = QtWidgets.QAction('Close', parent)
 
-        self.menu.addAction(self.tic)
-        self.menu.addAction(self.eic)
-        self.menu.addAction(self.close)
+        menu.addAction(tic)
+        menu.addAction(eic)
+        menu.addAction(close)
 
-        action = self.menu.exec_(QtGui.QCursor.pos())
+        action = menu.exec_(QtGui.QCursor.pos())
 
-        if action == self.tic:
-            self.parent.plot_tic_button()
-        elif action == self.eic:
-            self.parent.get_eic_parameters()
-        elif action == self.close:
+        if action == tic:
+            for file in self.parent.get_selected_files():
+                file = file.text()
+                self.parent.plot_tic(file)
+        elif action == eic:
+            subwindow = EICParameterWindow(self.parent)
+            subwindow.show()
+        elif action == close:
             self.close_files()
 
     def close_files(self):
-        for item in self.parent.list_of_files.selectedItems():
-            self.parent.list_of_files.deleteFile(item)
+        for item in self.parent.get_selected_files():
+            self.parent.close_file(item)
 
 
 class FeatureContextMenu(QtWidgets.QMenu):
     def __init__(self, parent: MainWindow):
         self.parent = parent
         super().__init__(parent)
-        self.feature = None
-        for item in self.parent.list_of_features.selectedItems():
-            self.feature = self.parent.list_of_features.get_feature(item)
-        self.menu = QtWidgets.QMenu(parent)
+        feature = None
+        for item in self.parent.get_selected_features():
+            feature = item
 
-        self.with_rt_correction = QtWidgets.QAction('Plot with rt correction', parent)
-        self.without_rt_correction = QtWidgets.QAction('Plot without rt correction', parent)
+        menu = QtWidgets.QMenu(parent)
 
-        self.menu.addAction(self.with_rt_correction)
-        self.menu.addAction(self.without_rt_correction)
+        with_rt_correction = QtWidgets.QAction('Plot with rt correction', parent)
+        without_rt_correction = QtWidgets.QAction('Plot without rt correction', parent)
 
-        action = self.menu.exec_(QtGui.QCursor.pos())
+        menu.addAction(with_rt_correction)
+        menu.addAction(without_rt_correction)
 
-        if action == self.with_rt_correction:
-            self.parent.plot_feature(self.feature, shifted=True)
-        elif action == self.without_rt_correction:
-            self.parent.plot_feature(self.feature, shifted=False)
+        action = menu.exec_(QtGui.QCursor.pos())
 
-
-class EICParameterWindow(QtWidgets.QDialog):
-    def __init__(self, parent: MainWindow):
-        self.parent = parent
-        super().__init__(self.parent)
-
-        mz_layout = QtWidgets.QHBoxLayout()
-        mz_label = QtWidgets.QLabel(self)
-        mz_label.setText('mz=')
-        self.mz_getter = QtWidgets.QLineEdit(self)
-        self.mz_getter.setText('100.000')
-        mz_layout.addWidget(mz_label)
-        mz_layout.addWidget(self.mz_getter)
-
-        delta_layout = QtWidgets.QHBoxLayout()
-        delta_label = QtWidgets.QLabel(self)
-        delta_label.setText('delta=±')
-        self.delta_getter = QtWidgets.QLineEdit(self)
-        self.delta_getter.setText('0.005')
-        delta_layout.addWidget(delta_label)
-        delta_layout.addWidget(self.delta_getter)
-
-        self.plot_button = QtWidgets.QPushButton('Plot')
-        self.plot_button.clicked.connect(self.plot)
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.addLayout(mz_layout)
-        layout.addLayout(delta_layout)
-        layout.addWidget(self.plot_button)
-        self.setLayout(layout)
-
-    def plot(self):
-        try:
-            mz = float(self.mz_getter.text())
-            delta = float(self.delta_getter.text())
-            self.parent.plot_eic_button(mz, delta)
-            self.close()
-        except ValueError:
-            # popup window with exception
-            msg = QtWidgets.QMessageBox(self)
-            msg.setText("'mz' and 'delta' should be float numbers!")
-            msg.setIcon(QtWidgets.QMessageBox.Warning)
-            msg.exec_()
-
-
-class ClearMainCanvasWindow(QtWidgets.QDialog):
-    def __init__(self, parent: MainWindow):
-        self.parent = parent
-        super().__init__(self.parent)
-
-        self.plotted_list = QtWidgets.QListWidget()
-        self.plotted_list.setSelectionMode(
-            QtWidgets.QAbstractItemView.ExtendedSelection
-        )
-        for label in self.parent.label2line:
-            self.plotted_list.addItem(label)
-
-        clear_selected_button = QtWidgets.QPushButton('Clear selected')
-        clear_selected_button.clicked.connect(self.clear_selected)
-
-        clear_all_button = QtWidgets.QPushButton('Clear all')
-        clear_all_button.clicked.connect(self.clear_all)
-
-        button_layout = QtWidgets.QHBoxLayout()
-        button_layout.addWidget(clear_selected_button)
-        button_layout.addWidget(clear_all_button)
-
-        layout = QtWidgets.QVBoxLayout()
-        layout.addWidget(self.plotted_list)
-        layout.addLayout(button_layout)
-        self.setLayout(layout)
-
-    def clear_selected(self):
-        for select_item in self.plotted_list.selectedItems():
-            self.parent.ax.lines.remove(self.parent.label2line[select_item.text()])
-            del self.parent.label2line[select_item.text()]
-        if self.parent.label2line:  # still not empty
-            self.parent.ax.legend(loc='best')
-            # recompute the ax.dataLim
-            self.parent.ax.relim()
-            # update ax.viewLim using the new dataLim
-            self.parent.ax.autoscale_view()
-        else:
-            self.parent.figure.clear()
-            self.parent.ax = self.parent.figure.add_subplot(111)
-        self.parent.canvas.draw()  # refresh canvas
-        self.close()
-
-    def clear_all(self):
-        self.parent.label2line = dict()  # reinitialize
-        self.parent.figure.clear()
-        self.parent.ax = self.parent.figure.add_subplot(111)
-        self.parent.canvas.draw()  # refresh canvas
-        self.close()
+        if action == with_rt_correction:
+            self.parent.plot_feature(feature, shifted=True)
+        elif action == without_rt_correction:
+            self.parent.plot_feature(feature, shifted=False)
 
 
 if __name__ == '__main__':

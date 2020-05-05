@@ -1,8 +1,8 @@
 import os
 import torch
 from PyQt5 import QtWidgets
-from functools import partial
-from gui_utils.auxilary_utils import FileListWidget, GetFileWidget, ProgressBarsListItem
+from gui_utils.abstract_main_window import AbtractMainWindow
+from gui_utils.auxilary_utils import FileListWidget, GetFileWidget
 from gui_utils.threading import Worker
 from processing_utils.runner import FilesRunner
 from models.rcnn import RecurrentCNN
@@ -45,7 +45,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
     peak_points_getter : QtWidgets.QLineEdit
         A getter for peak_minimum_points parameter
     """
-    def __init__(self, files, mode, parent):
+    def __init__(self, files, mode, parent: AbtractMainWindow):
         self.parent = parent
         self.mode = mode
         super().__init__(parent)
@@ -58,6 +58,8 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         self.list_of_files = FileListWidget()
         for file in files:
             self.list_of_files.addFile(file)
+        for i in range(self.list_of_files.count()):
+            self.list_of_files.item(i).setSelected(True)
         self.list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         # left 'half' layout
@@ -70,7 +72,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         if self.mode == 'all in one':
             choose_weights_label = QtWidgets.QLabel()
             choose_weights_label.setText("Choose weights for a 'all in one' model:")
-            self.weights_widget = GetFileWidget('pt', os.path.join(os.getcwd(), 'data/weights/RecurrentCNN.pt'),
+            self.weights_widget = GetFileWidget('pt', os.path.join(os.getcwd(), 'data', 'weights', 'RecurrentCNN.pt'),
                                                 self.parent)
             weights_layout.addWidget(choose_weights_label)
             weights_layout.addWidget(self.weights_widget)
@@ -78,12 +80,12 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             choose_classifier_weights_label = QtWidgets.QLabel()
             choose_classifier_weights_label.setText('Choose weights for a Classifier:')
             self.weights_classifier_widget = GetFileWidget('pt', os.path.join(os.getcwd(),
-                                                                              'data/weights/Classifier.pt'),
+                                                                              'data', 'weights', 'Classifier.pt'),
                                                            self.parent)
             choose_segmentator_weights_label = QtWidgets.QLabel()
             choose_segmentator_weights_label.setText('Choose weights for a Segmentator:')
             self.weights_segmentator_widget = GetFileWidget('pt', os.path.join(os.getcwd(),
-                                                                               'data/weights/Segmentator.pt'),
+                                                                               'data', 'weights', 'Segmentator.pt'),
                                                             self.parent)
             weights_layout.addWidget(choose_classifier_weights_label)
             weights_layout.addWidget(self.weights_classifier_widget)
@@ -163,6 +165,17 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
                 segmentator.load_state_dict(torch.load(path2segmentator_weights, map_location=device))
                 segmentator.eval()
                 models = [classifier, segmentator]
+            elif self.mode == 'simple':
+                self.mode = 'sequential'
+                classifier = Classifier().to(device)
+                path2classifier_weights = os.path.join('data', 'weights', 'Classifier.pt')
+                classifier.load_state_dict(torch.load(path2classifier_weights, map_location=device))
+                classifier.eval()
+                segmentator = Segmentator().to(device)
+                path2segmentator_weights = os.path.join('data', 'weights', 'Segmentator.pt')
+                segmentator.load_state_dict(torch.load(path2segmentator_weights, map_location=device))
+                segmentator.eval()
+                models = [classifier, segmentator]
             else:
                 assert False, self.mode
 
@@ -176,14 +189,10 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
                                  required_points, dropped_points,
                                  minimum_peak_points, device)
 
-            pb = ProgressBarsListItem('Data processing:', parent=self.parent.pb_list)
-            self.parent.pb_list.addItem(pb)
             worker = Worker(runner, path2mzml)
-            worker.signals.progress.connect(pb.setValue)
             worker.signals.result.connect(self.parent.set_features)
-            worker.signals.finished.connect(partial(self.parent.threads_finisher,
-                                                    pb=pb))
-            self.parent.threadpool.start(worker)
+            self.parent.run_thread('Data processing:', worker)
+
             self.close()
         except ValueError:
             # popup window with exception
