@@ -18,6 +18,7 @@ class ReAnnotationParameterWindow(QtWidgets.QDialog):
         self.mode = 'reannotation'
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: reannotation')
 
         save_to_label = QtWidgets.QLabel()
         save_to_label.setText('Choose a folder with annotated ROIs:')
@@ -47,6 +48,7 @@ class AnnotationParameterWindow(QtWidgets.QDialog):
         self.mode = mode
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: manual annotation')
 
         self.files = files
         self.description = None
@@ -183,6 +185,7 @@ class AnnotationMainWindow(QtWidgets.QDialog):
     def __init__(self, ROIs, folder, file_prefix, file_suffix, description, mode,
                  minimum_peak_points, parent=None):
         super().__init__(parent)
+        self.setWindowTitle('peakonly: annotation window')
         self.file_prefix = file_prefix
         self.file_suffix = file_suffix
         self.description = description
@@ -483,6 +486,7 @@ class AnnotationGetNumberOfPeaksNovel(QtWidgets.QDialog):
     def __init__(self, parent: AnnotationMainWindow):
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('annotation: number of peaks')
 
         label = QtWidgets.QLabel()
         label.setText('Print number of peaks in current ROI:')
@@ -566,6 +570,7 @@ class AnnotationGetBordersWindowNovel(QtWidgets.QDialog):
         self.number_of_peaks = number_of_peaks
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle("annotation: peaks' borders")
 
         main_layout = QtWidgets.QVBoxLayout()
         self.peak_layouts = []

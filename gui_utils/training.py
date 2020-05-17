@@ -42,6 +42,7 @@ class TrainingParameterWindow(QtWidgets.QDialog):
         self.mode = mode
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: models')
 
         train_folder_label = QtWidgets.QLabel()
         train_folder_label.setText('Choose a folder with train data:')
@@ -173,6 +174,7 @@ class TrainingMainWidget(QtWidgets.QWidget):
                  scheduler, label_criterion, integration_criterion, intersection_criterion, accumulation, parent):
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: training')
 
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -197,12 +199,12 @@ class TrainingMainWidget(QtWidgets.QWidget):
         self.classification_score_ax.set_title('Classification score')
         self.segmentation_score_ax = self.figure.add_subplot(133)
         self.segmentation_score_ax.set_title('Segmentation score')
-        self.figure.tight_layout()
         self.canvas = FigureCanvas(self.figure)
         toolbar = NavigationToolbar(self.canvas, self)
         canvas_layout = QtWidgets.QVBoxLayout()
         canvas_layout.addWidget(toolbar)
         canvas_layout.addWidget(self.canvas)
+        self.figure.tight_layout()
 
 
         # training parameters layout

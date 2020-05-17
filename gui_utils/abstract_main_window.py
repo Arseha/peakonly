@@ -22,6 +22,9 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
 
         self._figure = plt.figure()
         self._ax = self._figure.add_subplot(111)  # plot here
+        self._ax.set_xlabel('Retention time [min]')
+        self._ax.set_ylabel('Intensity')
+        self._ax.ticklabel_format(axis='y', scilimits=(0, 0))
         self._label2line = dict()  # a label (aka line name) to plotted line
         self._canvas = FigureCanvas(self._figure)
         self._toolbar = NavigationToolbar(self._canvas, self)
@@ -55,10 +58,14 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
         if not self._label2line:  # in case if 'feature' was plotted
             self._figure.clear()
             self._ax = self._figure.add_subplot(111)
+            self._ax.set_xlabel('Retention time [min]')
+            self._ax.set_ylabel('Intensity')
+            self._ax.ticklabel_format(axis='y', scilimits=(0, 0))
 
         line = self._ax.plot(obj['x'], obj['y'], label=obj['label'])
         self._label2line[obj['label']] = line[0]  # save line
         self._ax.legend(loc='best')
+        self._figure.tight_layout()
         self._canvas.draw()
 
     def close_file(self, item):
@@ -79,6 +86,10 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
         self._figure.clear()
         self._ax = self._figure.add_subplot(111)
         feature.plot(self._ax, shifted=shifted)
+        self._ax.set_xlabel('Retention time')
+        self._ax.set_ylabel('Intensity')
+        self._ax.ticklabel_format(axis='y', scilimits=(0, 0))
+        self._figure.tight_layout()
         self._canvas.draw()  # refresh canvas
 
     def plot_tic(self, file):
@@ -129,4 +140,7 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
         else:
             self._figure.clear()
             self._ax = self._figure.add_subplot(111)
+            self._ax.set_xlabel('Retention time [min]')
+            self._ax.set_ylabel('Intensity')
+            self._ax.ticklabel_format(axis='y', scilimits=(0, 0))
         self._canvas.draw()

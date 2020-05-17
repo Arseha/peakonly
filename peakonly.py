@@ -58,8 +58,12 @@ class MainWindow(AbtractMainWindow):
         file_export_features_png.triggered.connect(partial(self._export_features, 'png'))
         file_export.addAction(file_export_features_png)
 
+        file_exit = QtWidgets.QAction("Exit", self)
+        file_exit.triggered.connect(QtWidgets.QApplication.quit)  # to do: create visualization
+
         file.addMenu(file_import)
         file.addMenu(file_export)
+        file.addAction(file_exit)
 
         # data submenu
         data = menu.addMenu('Data')
@@ -267,7 +271,6 @@ class MainWindow(AbtractMainWindow):
 
     @staticmethod
     def _save_features_png(features, directory, progress_callback):
-        plt.switch_backend('Agg')  # to do: check if it is alright
         fig = plt.figure()
         for i, feature in enumerate(features):
             ax = fig.add_subplot(111)
@@ -388,6 +391,7 @@ class FeatureContextMenu(QtWidgets.QMenu):
 
 
 if __name__ == '__main__':
+    plt.switch_backend('Qt5Agg')  # to do: check if it is alright
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     sys.exit(app.exec_())

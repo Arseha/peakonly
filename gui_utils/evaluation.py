@@ -48,6 +48,7 @@ class EvaluationParameterWindow(QtWidgets.QDialog):
         self.mode = mode
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: evaluation')
 
         test_folder_label = QtWidgets.QLabel()
         test_folder_label.setText('Choose a folder with test data:')
@@ -176,6 +177,7 @@ class EvaluationMainWindow(QtWidgets.QDialog):
     def __init__(self, test_folder, runner, parent):
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: evaluation')
 
         self.test_folder = test_folder
         self.runner = runner
@@ -341,6 +343,7 @@ class EvaluationStatisticsWindow(QtWidgets.QDialog):
     def __init__(self, tp_features, tn_features, fp_features, fn_features, parent):
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('evaluation: confusion matrix')
         # auxiliary calculations
         precision = len(tp_features) / (len(tp_features) + len(fp_features))
         recall = len(tp_features) / (len(tp_features) + len(fn_features))

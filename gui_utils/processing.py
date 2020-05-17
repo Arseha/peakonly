@@ -49,6 +49,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         self.parent = parent
         self.mode = mode
         super().__init__(parent)
+        self.setWindowTitle('peakonly: feature detection')
         self._init_ui(files)  # initialize user interface
 
     def _init_ui(self, files):
@@ -56,11 +57,11 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         choose_file_label = QtWidgets.QLabel()
         choose_file_label.setText('Choose files to process:')
         self.list_of_files = FileListWidget()
+        self.list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         for file in files:
             self.list_of_files.addFile(file)
         for i in range(self.list_of_files.count()):
             self.list_of_files.item(i).setSelected(True)
-        self.list_of_files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
         # left 'half' layout
         left_half_layout = QtWidgets.QVBoxLayout()
@@ -148,6 +149,11 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             required_points = int(self.roi_points_getter.text())
             dropped_points = int(self.dropped_points_getter.text())
             minimum_peak_points = int(self.peak_points_getter.text())
+            path2mzml = []
+            for file in self.list_of_files.selectedItems():
+                path2mzml.append(self.list_of_files.file2path[file.text()])
+            if not path2mzml:
+                raise ValueError
             if self.mode == 'all in one':
                 # to do: save models as pytorch scripts
                 model = RecurrentCNN().to(device)
@@ -178,12 +184,6 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
                 models = [classifier, segmentator]
             else:
                 assert False, self.mode
-
-            path2mzml = []
-            for file in self.list_of_files.selectedItems():
-                path2mzml.append(self.list_of_files.file2path[file.text()])
-            if not path2mzml:
-                raise ValueError
 
             runner = FilesRunner(self.mode, models, delta_mz,
                                  required_points, dropped_points,

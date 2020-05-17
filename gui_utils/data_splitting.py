@@ -10,6 +10,7 @@ class SplitterParameterWindow(QtWidgets.QDialog):
     def __init__(self, parent=None):
         self.parent = parent
         super().__init__(parent)
+        self.setWindowTitle('peakonly: data splitting')
 
         self.json_files = set()
 

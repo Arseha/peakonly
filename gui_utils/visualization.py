@@ -8,10 +8,11 @@ class EICParameterWindow(QtWidgets.QDialog):
     def __init__(self, parent: AbtractMainWindow):
         self.parent = parent
         super().__init__(self.parent)
+        self.setWindowTitle('peakonly: plot EIC')
 
         mz_layout = QtWidgets.QHBoxLayout()
         mz_label = QtWidgets.QLabel(self)
-        mz_label.setText('mz=')
+        mz_label.setText('m/z=')
         self.mz_getter = QtWidgets.QLineEdit(self)
         self.mz_getter.setText('100.000')
         mz_layout.addWidget(mz_label)
@@ -45,7 +46,7 @@ class EICParameterWindow(QtWidgets.QDialog):
         except ValueError:
             # popup window with exception
             msg = QtWidgets.QMessageBox(self)
-            msg.setText("'mz' and 'delta' should be float numbers!")
+            msg.setText("'m/z' and 'delta' should be float numbers!")
             msg.setIcon(QtWidgets.QMessageBox.Warning)
             msg.exec_()
 
@@ -54,6 +55,7 @@ class VisualizationWindow(QtWidgets.QDialog):
     def __init__(self, files, parent: AbtractMainWindow):
         self.parent = parent
         super().__init__(self.parent)
+        self.setWindowTitle('peakonly: visualization')
 
         # files selection
         files_layout = QtWidgets.QVBoxLayout()
