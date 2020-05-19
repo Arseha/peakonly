@@ -1,5 +1,8 @@
 import numpy as np
-from processing_utils.roi import get_ROIs
+try:
+    from cython_utils.roi import get_ROIs
+except ImportError:
+    from processing_utils.roi import get_ROIs
 from processing_utils.matching import construct_mzregions, rt_grouping, align_component
 from processing_utils.run_utils import preprocess, get_borders, Feature, \
     border_correction, build_features, feature_collapsing

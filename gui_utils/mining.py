@@ -6,7 +6,11 @@ from functools import partial
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from PyQt5 import QtWidgets, QtGui
-from processing_utils.roi import get_ROIs, construct_ROI
+try:
+    from cython_utils.roi import get_ROIs
+except ImportError:
+    from processing_utils.roi import get_ROIs
+from processing_utils.roi import construct_ROI
 # from processing_utils.run_utils import classifier_prediction
 from gui_utils.abstract_main_window import AbtractMainWindow
 from gui_utils.auxilary_utils import FileListWidget, GetFolderWidget, ProgressBarsListItem
