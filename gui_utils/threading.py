@@ -23,6 +23,7 @@ class WorkerSignals(QtCore.QObject):
     error = QtCore.pyqtSignal(tuple)
     result = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
+    operation = QtCore.pyqtSignal(str)
     download_progress = QtCore.pyqtSignal(int, int, int)
 
 
@@ -49,7 +50,7 @@ class Worker(QtCore.QRunnable):
         minimum peak length in points
 
     """
-    def __init__(self, function, *args, download=False, **kwargs):
+    def __init__(self, function, *args, download=False, multiple_process=False, **kwargs):
         super(Worker, self).__init__()
 
         self.function = function
@@ -62,6 +63,9 @@ class Worker(QtCore.QRunnable):
             self.kwargs['progress_callback'] = self.signals.progress
         else:
             self.kwargs['progress_callback'] = self.signals.download_progress
+
+        if multiple_process:
+            self.kwargs['operation_callback'] = self.signals.operation
 
     @QtCore.pyqtSlot()
     def run(self):

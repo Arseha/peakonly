@@ -74,7 +74,7 @@ class VisualizationWindow(QtWidgets.QDialog):
 
         mz_layout = QtWidgets.QHBoxLayout()
         mz_label = QtWidgets.QLabel(self)
-        mz_label.setText('mz=')
+        mz_label.setText('m/z=')
         self.mz_getter = QtWidgets.QLineEdit(self)
         self.mz_getter.setText('100.000')
         mz_layout.addWidget(mz_label)

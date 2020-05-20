@@ -1,9 +1,9 @@
-PyQt5
+bintrees
 matplotlib
 numpy
-pymzML
-torch >= 1.2.0
-scipy
-tqdm
 pandas
-bintrees
+pymzML
+PyQt5
+scipy
+torch >= 1.2.0
+tqdm

@@ -1,3 +1,4 @@
+import os
 import numpy as np
 try:
     from cython_utils.roi import get_ROIs
@@ -46,7 +47,7 @@ class BasicRunner:
         self.peak_minimum_points = peak_minimum_points
         self.device = device
 
-    def __call__(self, roi, sample_name, progress_callback=None):
+    def __call__(self, roi, sample_name, progress_callback=None, operation_callback=None):
         """
         Processing single roi
 
@@ -138,17 +139,17 @@ class FilesRunner(BasicRunner):
         self.required_points = required_points
         self.dropped_points = dropped_points
 
-    def __call__(self, files, progress_callback=None):
+    def __call__(self, files, progress_callback=None, operation_callback=None):
         if len(files) == 1:
             file = files[0]
-            features = self._single_run(file, progress_callback)
+            features = self._single_run(file, progress_callback, operation_callback)
         elif len(files) > 1:
-            features = self._batch_run(files, progress_callback)
+            features = self._batch_run(files, progress_callback, operation_callback)
         else:
             features = []
         return features
 
-    def _single_run(self, file, progress_callback=None):
+    def _single_run(self, file, progress_callback=None, operation_callback=None):
         """
         Processing single *.mzML file
 
@@ -163,9 +164,13 @@ class FilesRunner(BasicRunner):
             a list of 'Feature' objects (each consist of single ROI)
         """
         # get ROIs from raw spectrum
+        if operation_callback is not None:
+            operation_callback.emit(f'Detecting ROIs in {os.path.basename(file)}:')
         rois = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points, progress_callback)
         features = []
         percentage = -1
+        if operation_callback is not None:
+            operation_callback.emit(f'Finding peaks in detected ROIs:')
         for i, roi in enumerate(rois):
             features_from_roi = super(FilesRunner, self).__call__(roi, file)
             features.extend(features_from_roi)
@@ -178,7 +183,7 @@ class FilesRunner(BasicRunner):
                       'dropped_points': self.dropped_points, 'peak minimum points': self.peak_minimum_points}
         return features, parameters
 
-    def _batch_run(self, files, progress_callback=None):
+    def _batch_run(self, files, progress_callback=None, operation_callback=None):
         """
         Processing a batch of  *.mzML files
 
@@ -195,8 +200,13 @@ class FilesRunner(BasicRunner):
         # ROI detection
         rois = {}
         for file in files:  # get ROIs for every file
+            if operation_callback is not None:
+                operation_callback.emit(f'Detecting ROIs in {os.path.basename(file)}:')
             rois[file] = get_ROIs(file, self.delta_mz, self.required_points, self.dropped_points, progress_callback)
 
+
+        if operation_callback is not None:
+            operation_callback.emit(f'Alignment of ROIs:')
         # ROI alignment
         mzregions = construct_mzregions(rois, self.delta_mz)  # construct mz regions
         components = rt_grouping(mzregions)  # group ROIs in mz regions based on RT
@@ -204,11 +214,13 @@ class FilesRunner(BasicRunner):
         percentage = -1
         for i, component in enumerate(components):
             aligned_components.append(align_component(component))
-            new_percentage = int(i * 100 / len(rois))
+            new_percentage = int(i * 100 / len(components))
             if progress_callback is not None and new_percentage > percentage:
                 percentage = new_percentage
                 progress_callback.emit(percentage)
 
+        if operation_callback is not None:
+            operation_callback.emit(f'Finding peaks in detected ROIs:')
         # Classification, integration and correction
         component_number = 0
         features = []
@@ -250,7 +262,7 @@ class FilesRunner(BasicRunner):
                 features.extend(build_features(component, borders, component_number))
                 component_number += 1
 
-            new_percentage = int(j * 100 / len(rois))
+            new_percentage = int(j * 100 / len(aligned_components))
             if progress_callback is not None and new_percentage > percentage:
                 percentage = new_percentage
                 progress_callback.emit(percentage)

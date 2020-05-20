@@ -6,6 +6,7 @@ from functools import partial
 import matplotlib.pyplot as plt
 from PyQt5 import QtWidgets, QtGui, QtCore
 from processing_utils.postprocess import ResultTable
+from processing_utils.run_utils import find_mzML
 from gui_utils.abstract_main_window import AbtractMainWindow
 from gui_utils.auxilary_utils import ProgressBarsListItem
 from gui_utils.mining import AnnotationParameterWindow, ReAnnotationParameterWindow
@@ -47,8 +48,12 @@ class MainWindow(AbtractMainWindow):
 
         file_import = QtWidgets.QMenu('Open', self)
         file_import_mzML = QtWidgets.QAction('Open *.mzML', self)
-        file_import_mzML.triggered.connect(self._open_files)
+        file_import_mzML.triggered.connect(self._open_file)
         file_import.addAction(file_import_mzML)
+        file_import_folder_mzML = QtWidgets.QAction('Open folder with *.mzML files', self)
+        file_import_folder_mzML.triggered.connect(self._open_folder)
+        file_import.addAction(file_import_folder_mzML)
+
 
         file_export = QtWidgets.QMenu('Save', self)
         file_export_features_csv = QtWidgets.QAction('Save a *.csv file with detected features', self)
@@ -142,14 +147,26 @@ class MainWindow(AbtractMainWindow):
 
     def _init_ui(self):
         # Layouts
+        files_layout = QtWidgets.QVBoxLayout()
+        files_label = QtWidgets.QLabel(self)
+        files_label.setText('Opened files:')
+        files_layout.addWidget(files_label)
+        files_layout.addWidget(self._list_of_files)
+
+        features_layout = QtWidgets.QVBoxLayout()
+        features_label = QtWidgets.QLabel(self)
+        features_label.setText('Detected features:')
+        features_layout.addWidget(features_label)
+        features_layout.addWidget(self._list_of_features)
+
         canvas_layout = QtWidgets.QVBoxLayout()
         canvas_layout.addWidget(self._toolbar)
         canvas_layout.addWidget(self._canvas)
 
         canvas_files_features_layout = QtWidgets.QHBoxLayout()
-        canvas_files_features_layout.addWidget(self._list_of_files, 15)
+        canvas_files_features_layout.addLayout(files_layout, 15)
         canvas_files_features_layout.addLayout(canvas_layout, 70)
-        canvas_files_features_layout.addWidget(self._list_of_features, 15)
+        canvas_files_features_layout.addLayout(features_layout, 15)
 
         scrollable_pb_list = QtWidgets.QScrollArea()
         scrollable_pb_list.setWidget(self._pb_list)
@@ -165,9 +182,14 @@ class MainWindow(AbtractMainWindow):
         self.setCentralWidget(widget)
 
     # Auxiliary methods
-    def _open_files(self):
+    def _open_file(self):
         files_names = QtWidgets.QFileDialog.getOpenFileNames(None, '', '', 'mzML (*.mzML)')[0]
         for name in files_names:
+            self._list_of_files.addFile(name)
+
+    def _open_folder(self):
+        path = str(QtWidgets.QFileDialog.getExistingDirectory())
+        for name in sorted(find_mzML(path)):
             self._list_of_files.addFile(name)
 
     def _export_features(self, mode):

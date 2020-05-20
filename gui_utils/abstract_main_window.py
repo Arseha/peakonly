@@ -33,6 +33,7 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
         pb = ProgressBarsListItem(caption, parent=self._pb_list)
         self._pb_list.addItem(pb)
         worker.signals.progress.connect(pb.setValue)
+        worker.signals.operation.connect(pb.setLabel)
         worker.signals.finished.connect(partial(self._threads_finisher,
                                                 text=text, icon=icon, pb=pb))
         self._thread_pool.start(worker)
@@ -50,7 +51,7 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
     def set_features(self, obj):
         features, parameters = obj
         self._list_of_features.clear()
-        for feature in features:
+        for feature in sorted(features, key=lambda x: x.mz):
             self._list_of_features.add_feature(feature)
         self._feature_parameters = parameters
 
@@ -86,6 +87,7 @@ class AbtractMainWindow(QtWidgets.QMainWindow):
         self._figure.clear()
         self._ax = self._figure.add_subplot(111)
         feature.plot(self._ax, shifted=shifted)
+        self._ax.set_title(item.text())
         self._ax.set_xlabel('Retention time')
         self._ax.set_ylabel('Intensity')
         self._ax.ticklabel_format(axis='y', scilimits=(0, 0))

@@ -189,7 +189,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
                                  required_points, dropped_points,
                                  minimum_peak_points, device)
 
-            worker = Worker(runner, path2mzml)
+            worker = Worker(runner, path2mzml, multiple_process=True)
             worker.signals.result.connect(self.parent.set_features)
             self.parent.run_thread('Data processing:', worker)
 

@@ -433,7 +433,6 @@ class Feature:
                             alpha=0.5, label=os.path.basename(sample))
         if show_legend:
             ax.legend(loc='best')
-        ax.set_title('mz = {:.4f}, rt = {:.2f} - {:.2f}'.format(self.mz, self.rtmin, self.rtmax))
 
 
 def build_features(component, borders, initial_group):

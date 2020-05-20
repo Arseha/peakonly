@@ -99,17 +99,21 @@ class ProgressBarsListItem(QtWidgets.QWidget):
         if self.pb is None:
             self.pb = QtWidgets.QProgressBar()
 
-        label = QtWidgets.QLabel(self)
-        label.setText(text)
+        self.label = QtWidgets.QLabel(self)
+        self.label.setText(text)
 
         main_layout = QtWidgets.QHBoxLayout()
-        main_layout.addWidget(label, 30)
+        main_layout.addWidget(self.label, 30)
         main_layout.addWidget(self.pb, 70)
 
         self.setLayout(main_layout)
 
     def setValue(self, value):
         self.pb.setValue(value)
+
+    def setLabel(self, text):
+        self.pb.setValue(0)
+        self.label.setText(text)
 
 
 class ProgressBarsList(QtWidgets.QWidget):
