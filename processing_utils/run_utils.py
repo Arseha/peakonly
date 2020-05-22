@@ -1,7 +1,6 @@
 import os
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.interpolate import interp1d
 from processing_utils.matching import intersected, conv2correlation
@@ -410,9 +409,7 @@ class Feature:
         label2class = {}
         labels = set()
         for sample in self.samples:
-            end = sample.rfind('/')
-            begin = sample[:end].rfind('/') + 1
-            label = sample[begin:end]
+            label = os.path.basename(os.path.dirname(sample))
             labels.add(label)
             name2label[sample] = label
 
@@ -420,7 +417,8 @@ class Feature:
             label2class[label] = i
 
         m = len(labels)
-        for sample, roi, shift, border in zip(self.samples, self.rois, self.shifts, self.borders):
+        for sample, roi, shift, border in sorted(zip(self.samples, self.rois, self.shifts, self.borders),
+                                                 key=lambda zipped: zipped[0]):
             y = roi.i
             if shifted:
                 x = np.linspace(roi.scan[0] + shift, roi.scan[1] + shift, len(y))

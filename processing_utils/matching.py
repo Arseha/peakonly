@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
@@ -187,9 +188,7 @@ class groupedROI:
                 label2class[label] = label  # identical transition
         else:
             for sample in self.samples:
-                end = sample.rfind('/')
-                begin = sample[:end].rfind('/') + 1
-                label = sample[begin:end]
+                label = os.path.basename(os.path.dirname(sample))
                 labels.add(label)
                 name2label[sample] = label
 

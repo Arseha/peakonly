@@ -63,11 +63,17 @@ class MainWindow(AbtractMainWindow):
         file_export_features_png.triggered.connect(partial(self._export_features, 'png'))
         file_export.addAction(file_export_features_png)
 
+        file_clear = QtWidgets.QMenu('Clear', self)
+        file_clear_features = QtWidgets.QAction('Clear panel with detected features', self)
+        file_clear_features.triggered.connect(self._list_of_features.clear)
+        file_clear.addAction(file_clear_features)
+
         file_exit = QtWidgets.QAction("Exit", self)
         file_exit.triggered.connect(QtWidgets.QApplication.quit)  # to do: create visualization
 
         file.addMenu(file_import)
         file.addMenu(file_export)
+        file.addMenu(file_clear)
         file.addAction(file_exit)
 
         # data submenu
@@ -413,7 +419,7 @@ class FeatureContextMenu(QtWidgets.QMenu):
 
 
 if __name__ == '__main__':
-    plt.switch_backend('Qt5Agg')  # to do: check if it is alright
+    plt.switch_backend('Agg')  # to do: check if it is alright???
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow()
     sys.exit(app.exec_())
