@@ -5,7 +5,7 @@ ________
 
 - **Article**: [Deep learning for the precise peak detection in high-resolution LC-MS data, *Analytical Chemistry*.](http://dx.doi.org/10.1021/acs.analchem.9b04811)
 - **Releases**: https://github.com/arseha/peakonly/releases/
-- **Instruction:** [detailed instruction for *peakonly* v.0.2.0-beta](https://drive.google.com/file/d/1pzJBpUINsdjWKQy0SkxXae79e5j0r3sG/view)
+- **Instruction:** [detailed instruction for *peakonly* v.0.2.0-beta](https://bit.ly/peakonly_manual)
 
 
 Supported formats: 
@@ -21,7 +21,7 @@ peakonly has been tested successfully with:
 - Windows 10 
 - Windows 7
 
-For Windows7/10 commands should be entered through Windows PowerShell. [Detailed instruction is available](https://drive.google.com/file/d/1pzJBpUINsdjWKQy0SkxXae79e5j0r3sG/view). Be sure that your python version is at least 3.6.
+For Windows7/10 commands should be entered through Windows PowerShell. [Detailed instruction is available](https://bit.ly/peakonly_manual). Be sure that your python version is at least 3.6.
 
 
 Installing and running the application
@@ -38,7 +38,7 @@ pip3 install -r requirements.txt
 python3 peakonly.py
 ```
 
-The more detailed instruction on how to install and run the application as well as a thorough manual on how to use it is available via [the link.](https://drive.google.com/file/d/1pzJBpUINsdjWKQy0SkxXae79e5j0r3sG/view)
+The more detailed instruction on how to install and run the application as well as a thorough manual on how to use it is available via [the link.](https://bit.ly/peakonly_manual)
 
 
 Call for Contributions
