@@ -1,8 +1,9 @@
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.sparse.csgraph import connected_components
-from utils.roi import ROI
+from processing_utils.roi import ROI
 
 
 class mzRegion:
@@ -90,7 +91,7 @@ def intersected(begin1, end1, begin2, end2, percentage=None):
     return ans
 
 
-def roi_intersected(one_roi, two_roi, percentage=None):
+def roi_intersected(one_roi, two_roi, percentage=0.3):
     """
     A function that determines if two roi intersect based on rt and mz.
     :return: bool
@@ -187,9 +188,7 @@ class groupedROI:
                 label2class[label] = label  # identical transition
         else:
             for sample in self.samples:
-                end = sample.rfind('/')
-                begin = sample[:end].rfind('/') + 1
-                label = sample[begin:end]
+                label = os.path.basename(os.path.dirname(sample))
                 labels.add(label)
                 name2label[sample] = label
 
@@ -238,7 +237,6 @@ def stitch_component(component):
     :return: new_component with stitched ROIs
     """
     new_component = defaultdict(list)
-    #
     for file in component:
         begin_scan, end_scan = component[file][0].scan
         begin_rt, end_rt = component[file][0].rt
@@ -305,7 +303,7 @@ def align_component(component, max_shift=20):
         base_sample, base_roi = None, None
         for sample in component:
             assert len(component[sample]) == 1
-            for roi in component[sample]:  # in fact there are only one roi
+            for roi in component[sample]:  # in fact there are only one roi after stitching
                 i = np.max(roi.i)
                 if i > max_i:
                     max_i = i

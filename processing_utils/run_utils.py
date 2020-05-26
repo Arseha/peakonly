@@ -1,10 +1,9 @@
 import os
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.interpolate import interp1d
-from utils.matching import intersected, conv2correlation
+from processing_utils.matching import intersected, conv2correlation
 from itertools import permutations
 
 
@@ -20,15 +19,16 @@ def find_mzML(path, array=None):
     return array
 
 
-def preprocess(signal, device, points):
+def preprocess(signal, device, interpolate=False, length=None):
     """
     :param signal: intensities in roi
     :param device: cpu or gpu
     :param points: number of point needed for CNN
     :return: preprocessed intensities which can be used in CNN
     """
-    interpolate = interp1d(np.arange(len(signal)), signal, kind='linear')
-    signal = interpolate(np.arange(points) / (points - 1) * (len(signal) - 1))
+    if interpolate:
+        interpolate = interp1d(np.arange(len(signal)), signal, kind='linear')
+        signal = interpolate(np.arange(length) / (length - 1) * (len(signal) - 1))
     signal = torch.tensor(signal / np.max(signal), dtype=torch.float32, device=device)
     return signal.view(1, 1, -1)
 
@@ -119,6 +119,49 @@ def border_intersection(border, avg_border):
     """
     # to do: adjustable parameter?
     return intersected(border[0], border[1], avg_border[0], avg_border[1], 0.6)
+
+
+def get_borders(integration_mask, intersection_mask, peak_minimum_points=5,
+                threshold=0.5, interpolation_factor=1):
+    """
+    Parameters
+    ----------
+    integration_mask
+    intersection_mask
+    peak_minimum_points
+    split_threshold
+    threshold
+    interpolation_factor
+
+    Returns
+    -------
+
+    """
+    domain = integration_mask * (1 - intersection_mask) > threshold
+    borders_roi = []
+    begin = 0 if domain[0] else -1
+    peak_wide = 1 if domain[0] else 0
+    number_of_peaks = 0
+    for n in range(len(domain) - 1):
+        if domain[n + 1] and not domain[n]:  # peak begins
+            begin = n + 1
+            peak_wide = 1
+        elif domain[n + 1] and begin != -1:  # peak continues
+            peak_wide += 1
+        elif not domain[n + 1] and begin != -1:  # peak ends
+            if peak_wide / interpolation_factor > peak_minimum_points:
+                number_of_peaks += 1
+                b = int(begin // interpolation_factor)
+                e = int((n + 2) // interpolation_factor)  # to do: why n+2?
+                borders_roi.append([b, e])
+            begin = -1
+            peak_wide = 0
+    if begin != -1 and peak_wide * interpolation_factor > peak_minimum_points:
+        number_of_peaks += 1
+        b = int(begin // interpolation_factor)
+        e = int(len(domain) // interpolation_factor)
+        borders_roi.append([b, e])
+    return borders_roi
 
 
 def border2average_correction(borders, averaged_borders):
@@ -358,7 +401,7 @@ class Feature:
         self.shifts.extend(feature.shifts)
         self.intensities.extend(feature.intensities)
 
-    def plot(self, shifted=True):
+    def plot(self, ax, shifted=True, show_legend=True):
         """
         Visualize Feature object
         """
@@ -366,9 +409,7 @@ class Feature:
         label2class = {}
         labels = set()
         for sample in self.samples:
-            end = sample.rfind('/')
-            begin = sample[:end].rfind('/') + 1
-            label = sample[begin:end]
+            label = os.path.basename(os.path.dirname(sample))
             labels.add(label)
             name2label[sample] = label
 
@@ -376,7 +417,8 @@ class Feature:
             label2class[label] = i
 
         m = len(labels)
-        for sample, roi, shift, border in zip(self.samples, self.rois, self.shifts, self.borders):
+        for sample, roi, shift, border in sorted(zip(self.samples, self.rois, self.shifts, self.borders),
+                                                 key=lambda zipped: zipped[0]):
             y = roi.i
             if shifted:
                 x = np.linspace(roi.scan[0] + shift, roi.scan[1] + shift, len(y))
@@ -384,9 +426,11 @@ class Feature:
                 x = np.linspace(roi.scan[0], roi.scan[1], len(y))
             label = label2class[name2label[sample]]
             c = [label / m, 0.0, (m - label) / m]
-            plt.plot(x, y, color=c)
-            plt.fill_between(x[border[0]:border[1]], y[border[0]:border[1]], color=c, alpha=0.5)
-        plt.title('mz = {:.4f}, rt = {:.2f} -{:.2f}'.format(self.mz, self.rtmin, self.rtmax))
+            ax.plot(x, y, color=c)
+            ax.fill_between(x[border[0]:border[1]], y[border[0]:border[1]], color=c,
+                            alpha=0.5, label=os.path.basename(sample))
+        if show_legend:
+            ax.legend(loc='best')
 
 
 def build_features(component, borders, initial_group):
