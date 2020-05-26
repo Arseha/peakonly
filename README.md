@@ -5,7 +5,7 @@ ________
 
 - **Article**: [Deep learning for the precise peak detection in high-resolution LC-MS data, *Analytical Chemistry*.](http://dx.doi.org/10.1021/acs.analchem.9b04811)
 - **Releases**: https://github.com/arseha/peakonly/releases/
-- **Instruction:** [detailed instrion for *peakonly* v.0.2.0-beta](https://drive.google.com/file/d/1pzJBpUINsdjWKQy0SkxXae79e5j0r3sG/view)
+- **Instruction:** [detailed instruction for *peakonly* v.0.2.0-beta](https://drive.google.com/file/d/1pzJBpUINsdjWKQy0SkxXae79e5j0r3sG/view)
 
 
 Supported formats: 
