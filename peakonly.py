@@ -62,6 +62,9 @@ class MainWindow(AbtractMainWindow):
         file_export_features_png = QtWidgets.QAction('Save features as *.png files', self)
         file_export_features_png.triggered.connect(partial(self._export_features, 'png'))
         file_export.addAction(file_export_features_png)
+        file_export_feature_traces_csv = QtWidgets.QAction('Save features traces as *.csv files', self)
+        file_export_feature_traces_csv.triggered.connect(partial(self._export_features, 'traces_csv'))
+        file_export.addAction(file_export_feature_traces_csv)
 
         file_clear = QtWidgets.QMenu('Clear', self)
         file_clear_features = QtWidgets.QAction('Clear panel with detected features', self)
@@ -214,6 +217,11 @@ class MainWindow(AbtractMainWindow):
 
                 worker = Worker(self._save_features_png, features=self._list_of_features.features, directory=directory)
                 self.run_thread('Saving features as *.png files:', worker)
+            elif mode == 'traces_csv':
+                directory = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose a directory where to save'))
+
+                worker = Worker(self._save_feature_traces_csv, features=self._list_of_features.features, directory=directory)
+                self.run_thread('Saving feature traces as *.csv files', worker)
             else:
                 assert False, mode
         else:
@@ -307,6 +315,12 @@ class MainWindow(AbtractMainWindow):
             fig.clear()
             progress_callback.emit(int(i * 100 / len(features)))
         plt.close(fig)
+
+    @staticmethod
+    def _save_feature_traces_csv(features, directory, progress_callback):
+        for i, feature in enumerate(features):
+            feature.save_as_csv(os.path.join(directory, f'{i}.csv'))
+            progress_callback.emit(int(i * 100 / len(features)))
 
     def _split_data(self):
         subwindow = SplitterParameterWindow(self)

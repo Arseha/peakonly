@@ -1,6 +1,7 @@
 import os
 import torch
 import numpy as np
+import pandas as pd
 from collections import defaultdict
 from scipy.interpolate import interp1d
 from processing_utils.matching import intersected, conv2correlation
@@ -431,6 +432,26 @@ class Feature:
                             alpha=0.5, label=os.path.basename(sample))
         if show_legend:
             ax.legend(loc='best')
+
+    def save_as_csv(self, path):
+        # finding starting/ending points
+        scan_min = min([roi.scan[0] for roi in self.rois])
+        scan_max = max([roi.scan[1] for roi in self.rois])
+        # initializing a table with traces from all files (where features were found)
+        table = np.zeros((scan_max - scan_min + 1, 2*len(self.samples) + 1))
+        # writing info in the table
+        table[:, 0] = np.arange(scan_min, scan_max + 1)
+        columns_names = ['Scan #']
+        for i, (roi, sample, border) in enumerate(zip(self.rois, self.samples, self.borders)):
+            b, e = roi.scan
+            # saving intensity of roi
+            columns_names.append(f'Intensities: {sample}')
+            table[b - scan_min:e - scan_min + 1, 2 * i + 1] = roi.i
+            # saving info about peak's boundaries
+            columns_names.append(f'Boundaries: {sample}')
+            table[b - scan_min + border[0]:b - scan_min + border[1], 2 * i + 2] = 1
+        df = pd.DataFrame(table, columns=columns_names)
+        df.to_csv(path)
 
 
 def build_features(component, borders, initial_group):
