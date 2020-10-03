@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 import numpy as np
 import pandas as pd
@@ -452,6 +453,18 @@ class Feature:
             table[b - scan_min + border[0]:b - scan_min + border[1], 2 * i + 2] = 1
         df = pd.DataFrame(table, columns=columns_names)
         df.to_csv(path)
+
+    def save_as_json(self, path):
+        data = dict()
+        for roi, sample, border in zip(self.rois, self.samples, self.borders):
+            data[os.path.basename(sample)] = {
+                'intensity': roi.i,
+                'mz': roi.mz,
+                'begin': border[0],
+                'end': border[1]
+            }
+        with open(path, 'w') as f:
+            json.dump(data, f)
 
 
 def build_features(component, borders, initial_group):

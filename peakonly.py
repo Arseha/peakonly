@@ -65,6 +65,9 @@ class MainWindow(AbtractMainWindow):
         file_export_feature_traces_csv = QtWidgets.QAction('Save features traces as *.csv files', self)
         file_export_feature_traces_csv.triggered.connect(partial(self._export_features, 'traces_csv'))
         file_export.addAction(file_export_feature_traces_csv)
+        file_export_feature_traces_json = QtWidgets.QAction('Save features traces as *.json files', self)
+        file_export_feature_traces_json.triggered.connect(partial(self._export_features, 'traces_json'))
+        file_export.addAction(file_export_feature_traces_json)
 
         file_clear = QtWidgets.QMenu('Clear', self)
         file_clear_features = QtWidgets.QAction('Clear panel with detected features', self)
@@ -220,8 +223,17 @@ class MainWindow(AbtractMainWindow):
             elif mode == 'traces_csv':
                 directory = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose a directory where to save'))
 
-                worker = Worker(self._save_feature_traces_csv, features=self._list_of_features.features, directory=directory)
+                worker = Worker(
+                    self._save_feature_traces_csv, features=self._list_of_features.features, directory=directory
+                )
                 self.run_thread('Saving feature traces as *.csv files', worker)
+            elif mode == 'traces_json':
+                directory = str(QtWidgets.QFileDialog.getExistingDirectory(self, 'Choose a directory where to save'))
+
+                worker = Worker(
+                    self._save_feature_traces_json, features=self._list_of_features.features, directory=directory
+                )
+                self.run_thread('Saving feature traces as *.json files', worker)
             else:
                 assert False, mode
         else:
@@ -320,6 +332,12 @@ class MainWindow(AbtractMainWindow):
     def _save_feature_traces_csv(features, directory, progress_callback):
         for i, feature in enumerate(features):
             feature.save_as_csv(os.path.join(directory, f'{i}.csv'))
+            progress_callback.emit(int(i * 100 / len(features)))
+
+    @staticmethod
+    def _save_feature_traces_json(features, directory, progress_callback):
+        for i, feature in enumerate(features):
+            feature.save_as_json(os.path.join(directory, f'{i}.json'))
             progress_callback.emit(int(i * 100 / len(features)))
 
     def _split_data(self):
