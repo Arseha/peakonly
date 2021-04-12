@@ -170,11 +170,11 @@ def intersection(begin1, end1, begin2, end2):
     lower = (end1 <= end2) and (end1 > begin2)
     bigger = (end1 > end2) and (end2 > begin1)
     if lower:
-        intersection = end1 - np.max([begin1, begin2])
+        intersection = end1 - max([begin1, begin2])
         smallest = min((end1 - begin1, end2 - begin2))
         ans = (intersection / smallest)
     elif bigger:
-        intersection = end2 - np.max([begin1, begin2])
+        intersection = end2 - max([begin1, begin2])
         smallest = min((end1 - begin1, end2 - begin2))
         ans = (intersection / smallest)
     else:
