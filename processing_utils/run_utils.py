@@ -164,6 +164,24 @@ def get_borders(integration_mask, intersection_mask, peak_minimum_points=5,
     return borders_roi
 
 
+def intersection(begin1, end1, begin2, end2):
+    """Returns the fraction of the shortest interval that is covered by the
+    intersection of the two"""
+    lower = (end1 <= end2) and (end1 > begin2)
+    bigger = (end1 > end2) and (end2 > begin1)
+    if lower:
+        intersection = end1 - max([begin1, begin2])
+        smallest = min((end1 - begin1, end2 - begin2))
+        ans = (intersection / smallest)
+    elif bigger:
+        intersection = end2 - max([begin1, begin2])
+        smallest = min((end1 - begin1, end2 - begin2))
+        ans = (intersection / smallest)
+    else:
+        ans = 0.
+    return ans
+
+
 def border2average_correction(borders, averaged_borders):
     """
     Correct borders based on averaged borders
@@ -171,24 +189,21 @@ def border2average_correction(borders, averaged_borders):
     :param averaged_borders: averaged within similarity group borders in number of scans
     :return: corrected borders for current ROI in number of scan
     """
-    # to do: use that borders are sorted in fact
-    if len(borders) != 1 and len(borders) == len(averaged_borders):  # to do: not the best solution
-        mapping_matrix = np.eye(len(borders), dtype=np.int)
-    else:
-        mapping_matrix = np.zeros((len(borders), len(averaged_borders)), dtype=np.int)
-        for i, border in enumerate(borders):
-            for j, avg_border in enumerate(averaged_borders):
-                mapping_matrix[i, j] += border_intersection(border, avg_border)
 
-    # 'many-to-many' case resolution
-    # to do: 'many-to-many' should be impossible ?
-    for i, line in enumerate(mapping_matrix):
-        if np.sum(line) > 1:
-            for j in np.where(line == 1)[0][:-1]:
-                if j + 1 < len(mapping_matrix) and mapping_matrix[j + 1, j] == 1:
-                    mapping_matrix[j + 1, j] = 0
-                if j + 1 < len(mapping_matrix) and mapping_matrix[j + 1, j + 1] == 1:
-                    mapping_matrix[j, j + 1] = 0
+    if len(borders) == 0:
+        return averaged_borders
+    #if len(averaged_borders) == 0:
+    #    return borders
+
+    # Use the fractional overlap between borders and averaged_borders to construct
+    # a mapping matrix between the two (a possible fix for issue #9)
+    overlap = np.zeros((len(borders), len(averaged_borders)))
+    for i, border in enumerate(borders):
+        for j, avg_border in enumerate(averaged_borders):
+            overlap[i,j] = intersection(border[0], border[1], avg_border[0], avg_border[1])
+
+    mapping_matrix = np.zeros(overlap.shape, dtype=np.int)
+    mapping_matrix[overlap.argmax(axis=0), range(mapping_matrix.shape[1])] = 1
 
     corrected_borders = []
     added = np.zeros(len(borders), dtype=np.uint8)
