@@ -236,8 +236,12 @@ class FilesRunner(BasicRunner):
                     label = np.argmax(classifier_output)
                     if label == 1:
                         segmentator_output = segmentator_output.data.sigmoid().cpu().numpy()
-                        borders[sample] = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
+                        sample_borders = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
                                                       peak_minimum_points=self.peak_minimum_points)
+                        if sample_borders:
+                            borders[sample] = sample_borders
+                        else:
+                            to_delete.append(i)
                     else:
                         to_delete.append(i)
                 elif self.mode == 'sequential':
@@ -248,15 +252,19 @@ class FilesRunner(BasicRunner):
                     if label == 1:
                         _, segmentator_output = self.segmentator(signal)
                         segmentator_output = segmentator_output.data.sigmoid().cpu().numpy()
-                        borders[sample] = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
+                        sample_borders = get_borders(segmentator_output[0, 0, :], segmentator_output[0, 1, :],
                                                       peak_minimum_points=self.peak_minimum_points,
                                                       interpolation_factor=len(signal[0, 0]) / len(roi.i))
+                        if sample_borders:
+                            borders[sample] = sample_borders
+                        else:
+                            to_delete.append(i)
                     else:
                         to_delete.append(i)
                 else:
                     assert False, self.mode
 
-            if len(borders) > len(files) // 3:  # enough rois contain a peak
+            if len(borders) >= 1:  # at least 1 roi contains a peak
                 component.pop(to_delete)  # delete ROIs which don't contain peaks
                 border_correction(component, borders)
                 features.extend(build_features(component, borders, component_number))
@@ -268,14 +276,6 @@ class FilesRunner(BasicRunner):
                 progress_callback.emit(percentage)
 
         features = feature_collapsing(features)
-        # to do: is it necessary?
-        # explicitly delete features which were found in not enough quantity of ROIs
-        to_delete = []
-        for i, feature in enumerate(features):
-            if len(feature) <= len(files) // 3:  # to do: adjustable parameter
-                to_delete.append(i)
-        for j in to_delete[::-1]:
-            features.pop(j)
         print('total number of features: {}'.format(len(features)))
         parameters = {'files': files, 'delta mz': self.delta_mz, 'required points': self.required_points,
                       'dropped_points': self.dropped_points, 'peak minimum points': self.peak_minimum_points}
