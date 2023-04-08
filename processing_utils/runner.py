@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import torch
+
 try:
     from cython_utils.roi import get_ROIs
 except ImportError:
@@ -131,13 +133,22 @@ class FilesRunner(BasicRunner):
         minimum peak length in points
 
     """
-    def __init__(self, mode, models, delta_mz,
-                 required_points, dropped_points,
-                 peak_minimum_points, device):
+    def __init__(
+        self,
+        mode: str,
+        models,
+        delta_mz: float,
+        required_points: int,
+        dropped_points: int,
+        peak_minimum_points: int,
+        max_scan_shift: int,
+        device: torch.device,
+    ):
         super(FilesRunner, self).__init__(mode, models, peak_minimum_points, device)
         self.delta_mz = delta_mz
         self.required_points = required_points
         self.dropped_points = dropped_points
+        self.max_scan_shift = max_scan_shift
 
     def __call__(self, files, progress_callback=None, operation_callback=None):
         if len(files) == 1:
@@ -213,7 +224,7 @@ class FilesRunner(BasicRunner):
         aligned_components = []  # component alignment
         percentage = -1
         for i, component in enumerate(components):
-            aligned_components.append(align_component(component))
+            aligned_components.append(align_component(component, max_shift=self.max_scan_shift))
             new_percentage = int(i * 100 / len(components))
             if progress_callback is not None and new_percentage > percentage:
                 percentage = new_percentage

@@ -116,6 +116,11 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         self.peak_points_getter = QtWidgets.QLineEdit(self)
         self.peak_points_getter.setText('8')
 
+        max_scan_shift_alignment_label = QtWidgets.QLabel()
+        max_scan_shift_alignment_label.setText('Maximal shift during peak alignment (in number of scans)')
+        self.max_scan_shift_getter = QtWidgets.QLineEdit(self)
+        self.max_scan_shift_getter.setText('60')
+
         parameters_layout.addWidget(mz_label)
         parameters_layout.addWidget(self.mz_getter)
         parameters_layout.addWidget(roi_points_label)
@@ -124,6 +129,8 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
         parameters_layout.addWidget(self.dropped_points_getter)
         parameters_layout.addWidget(peak_points_label)
         parameters_layout.addWidget(self.peak_points_getter)
+        parameters_layout.addWidget(max_scan_shift_alignment_label)
+        parameters_layout.addWidget(self.max_scan_shift_getter)
 
         # run button
         run_button = QtWidgets.QPushButton('Run processing')
@@ -149,6 +156,7 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             required_points = int(self.roi_points_getter.text())
             dropped_points = int(self.dropped_points_getter.text())
             minimum_peak_points = int(self.peak_points_getter.text())
+            max_scan_shift = int(self.max_scan_shift_getter.text())
             path2mzml = []
             for file in self.list_of_files.selectedItems():
                 path2mzml.append(self.list_of_files.file2path[file.text()])
@@ -185,9 +193,16 @@ class ProcessingParameterWindow(QtWidgets.QDialog):
             else:
                 assert False, self.mode
 
-            runner = FilesRunner(self.mode, models, delta_mz,
-                                 required_points, dropped_points,
-                                 minimum_peak_points, device)
+            runner = FilesRunner(
+                self.mode,
+                models,
+                delta_mz=delta_mz,
+                required_points=required_points,
+                dropped_points=dropped_points,
+                peak_minimum_points=minimum_peak_points,
+                max_scan_shift=max_scan_shift,
+                device=device,
+            )
 
             worker = Worker(runner, path2mzml, multiple_process=True)
             worker.signals.result.connect(self.parent.set_features)

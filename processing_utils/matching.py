@@ -280,7 +280,7 @@ def conv2correlation(roi_i, base_roi_i, conv_vector):
     return (n * conv_vector - x * y) / (np.sqrt(n * x_square - x ** 2) * np.sqrt(n * y_square - y ** 2))
 
 
-def align_component(component, max_shift=20):
+def align_component(component, max_shift: int = 20):
     """
     Align ROIs in component based on point-wise correlation
     :param component: defaultdict where the key is the name of file and value is a list of ROIs
@@ -322,7 +322,7 @@ def align_component(component, max_shift=20):
             # to do: find local maxima greater than threshold
             shift = np.argmax(corr_vector) - pos - roi.scan[0] + base_roi.scan[0]
             max_corr = np.max(corr_vector)
-            if max_corr > correlation_threshold:
+            if max_corr > correlation_threshold and shift < max_shift:
                 to_delete.append(sample)  # delete ROI from component
                 aligned_component.append(roi, shift, sample, group_number)
             history[sample].append((group_number, max_corr, shift))  # history for after adjustment
